@@ -10,7 +10,11 @@ Czarina orchestrates multiple Claude Code agents working in parallel on a single
 - Clear git workflow instructions
 - Real-time progress tracking
 
-## Quick Start
+## Two Modes of Operation
+
+### Mode 1: Centralized (Desktop/Server)
+
+Full orchestration with dashboard and tmux:
 
 ```bash
 # 1. See available projects
@@ -26,7 +30,28 @@ Czarina orchestrates multiple Claude Code agents working in parallel on a single
 ./czarina launch <project-name>
 ```
 
-That's it! Watch the dashboard as workers execute their tasks in parallel.
+Perfect for: Team leads, monitoring multiple workers, desktop development
+
+### Mode 2: Embedded (Mobile/Remote) 🆕
+
+Self-contained orchestration in your project repo:
+
+```bash
+# 1. Embed orchestration into project
+./czarina embed <project-name>
+
+# 2. Commit to project repo
+cd <project-repo>
+git add czarina-* WORKERS.md
+git push
+
+# 3. Use from anywhere (even mobile!)
+"You are Engineer 1"
+```
+
+Perfect for: Claude Code Web, mobile devices, solo work, remote development
+
+See [Embedded Orchestration Guide](EMBEDDED_ORCHESTRATION_GUIDE.md) for details.
 
 ## Commands
 
@@ -63,6 +88,33 @@ $ ./czarina init sark-v2
 ```
 
 **💡 Always run this before launching workers!**
+
+### `czarina embed <project>` 🆕
+
+Embed orchestration into the project repository for mobile/remote use.
+
+**What it does:**
+- Creates `czarina-<project>/` directory in project repo
+- Copies all worker prompts with git workflows
+- Creates `WORKERS.md` at repo root for discovery
+- Sets up helper scripts and config
+
+```bash
+$ ./czarina embed sark-v2
+📦 Embedding orchestration into project: sark-v2
+
+→ Created czarina-sark-v2/ in project repo
+→ Copied 10 worker prompts
+→ Created WORKERS.md for discovery
+
+✅ Orchestration embedded!
+
+Next: git add czarina-* WORKERS.md && git push
+```
+
+**💡 Now workers can be launched with just: "You are Engineer 1"**
+
+See [Embedded Orchestration Guide](EMBEDDED_ORCHESTRATION_GUIDE.md) for complete details.
 
 ### `czarina dashboard <project>`
 Launch real-time monitoring dashboard.
