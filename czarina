@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Claude Orchestrator - Main CLI
+Czarina - Multi-Agent Orchestration CLI
 Simple interface for managing multi-agent orchestration projects
 
 Usage:
-    orchestrate dashboard <project>     - Launch project dashboard
-    orchestrate launch <project>        - Launch project workers
-    orchestrate status <project>        - Show project status
-    orchestrate list                    - List available projects
+    czarina dashboard <project>     - Launch project dashboard
+    czarina launch <project>        - Launch project workers
+    czarina status <project>        - Show project status
+    czarina list                    - List available projects
 """
 
 import sys
@@ -51,7 +51,7 @@ def cmd_dashboard(project_name):
     config_file = get_config_file(project_name)
     dashboard_script = orchestrator_dir / "czarina-core" / "dashboard.py"
 
-    print(f"🚀 Launching dashboard for '{project_name}'...")
+    print(f"🎯 Czarina Dashboard - {project_name}")
     print(f"   Config: {config_file}")
     print(f"   Press Ctrl+C to exit")
     print()
@@ -148,10 +148,10 @@ def show_usage():
     """Show usage information"""
     print(__doc__)
     print("\nExamples:")
-    print("  orchestrate list")
-    print("  orchestrate dashboard sark-v2")
-    print("  orchestrate launch sark-v2")
-    print("  orchestrate status sark-v2")
+    print("  czarina list")
+    print("  czarina dashboard sark-v2")
+    print("  czarina launch sark-v2")
+    print("  czarina status sark-v2")
 
 
 def main():
@@ -165,17 +165,17 @@ def main():
         cmd_list()
     elif command == "dashboard":
         if len(sys.argv) < 3:
-            print("❌ Usage: orchestrate dashboard <project>")
+            print("❌ Usage: czarina dashboard <project>")
             sys.exit(1)
         cmd_dashboard(sys.argv[2])
     elif command == "launch":
         if len(sys.argv) < 3:
-            print("❌ Usage: orchestrate launch <project>")
+            print("❌ Usage: czarina launch <project>")
             sys.exit(1)
         cmd_launch(sys.argv[2])
     elif command == "status":
         if len(sys.argv) < 3:
-            print("❌ Usage: orchestrate status <project>")
+            print("❌ Usage: czarina status <project>")
             sys.exit(1)
         cmd_status(sys.argv[2])
     elif command in ["-h", "--help", "help"]:
