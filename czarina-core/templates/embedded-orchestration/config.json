@@ -1,0 +1,17 @@
+{
+  "project": {
+    "name": "{{PROJECT_NAME}}",
+    "repository": "{{PROJECT_ROOT}}",
+    "orchestration_dir": "{{ORCHESTRATION_DIR}}"
+  },
+  "workers": [
+    {{WORKERS_JSON}}
+  ],
+  "omnibus": {
+    "branch": "{{OMNIBUS_BRANCH}}",
+    "merge_order": [{{MERGE_ORDER}}]
+  },
+  "checkpoints": [
+    {{CHECKPOINTS_JSON}}
+  ]
+}

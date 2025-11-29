@@ -6,6 +6,7 @@ Simple interface for managing multi-agent orchestration projects
 Usage:
     czarina list                    - List available projects
     czarina init <project>          - Initialize git branches for project
+    czarina embed <project>         - Embed orchestration into project repo
     czarina dashboard <project>     - Launch project dashboard
     czarina launch <project>        - Launch project workers
     czarina status <project>        - Show project status
@@ -137,6 +138,23 @@ def cmd_init(project_name):
     subprocess.run(["bash", str(init_script), str(config_file)])
 
 
+def cmd_embed(project_name):
+    """Embed orchestration into project repository"""
+    orchestrator_dir = get_orchestrator_dir()
+    config_file = get_config_file(project_name)
+    embed_script = orchestrator_dir / "czarina-core" / "embed-orchestration.sh"
+
+    if not embed_script.exists():
+        print(f"❌ Embed script not found: {embed_script}")
+        sys.exit(1)
+
+    print(f"📦 Embedding orchestration into project: {project_name}")
+    print(f"   Config: {config_file}")
+    print()
+
+    subprocess.run(["bash", str(embed_script), str(config_file)])
+
+
 def cmd_list():
     """List available projects"""
     orchestrator_dir = get_orchestrator_dir()
@@ -168,6 +186,7 @@ def show_usage():
     print("\nExamples:")
     print("  czarina list")
     print("  czarina init sark-v2")
+    print("  czarina embed sark-v2")
     print("  czarina dashboard sark-v2")
     print("  czarina launch sark-v2")
     print("  czarina status sark-v2")
@@ -187,6 +206,11 @@ def main():
             print("❌ Usage: czarina init <project>")
             sys.exit(1)
         cmd_init(sys.argv[2])
+    elif command == "embed":
+        if len(sys.argv) < 3:
+            print("❌ Usage: czarina embed <project>")
+            sys.exit(1)
+        cmd_embed(sys.argv[2])
     elif command == "dashboard":
         if len(sys.argv) < 3:
             print("❌ Usage: czarina dashboard <project>")
