@@ -158,7 +158,28 @@ czarina launch awesome-app
 - Git branches auto-created
 - Workers ready to receive tasks
 
-### Step 7: Enable Daemon (Optional but Recommended)
+### Step 7: You Become the Czar 🎭
+
+**As Claude Code, you are now the Czar** - the orchestration coordinator.
+
+**Say to yourself (Claude Code):**
+```
+I am the Czar for this Czarina orchestration.
+
+Project: Awesome App
+My responsibilities:
+1. Monitor all workers
+2. Manage the daemon
+3. Track token budgets
+4. Coordinate version progression
+5. Provide status updates
+
+Show me the current status.
+```
+
+**See [docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md) for complete Czar guide.**
+
+### Step 8: Enable Daemon (Recommended)
 
 ```bash
 czarina daemon start
@@ -169,6 +190,8 @@ czarina daemon start
 - Stuck worker detection
 - Alert system
 - Status monitoring
+
+**As Czar, you monitor the daemon and workers, stepping in only when needed.**
 
 ---
 
