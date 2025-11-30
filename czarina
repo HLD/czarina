@@ -4,6 +4,7 @@ Czarina - Multi-Agent Orchestration CLI
 Simple interface for managing multi-agent orchestration projects
 
 Usage:
+    czarina analyze <plan-file>     - Analyze plan and suggest orchestration
     czarina init [project-name]     - Initialize orchestration in current dir
     czarina list                    - List all Czarina projects
     czarina launch [project]        - Launch project workers
@@ -546,10 +547,90 @@ def cmd_patterns_contribute():
     print("  3. Follow guide to submit upstream")
 
 
+def cmd_analyze(plan_file, output_file=None, interactive=False):
+    """
+    Analyze implementation plan and suggest orchestration setup
+
+    This is a STUB implementation. Full implementation requires:
+    - AI integration (Claude API or local LLM)
+    - Analysis template processing
+    - Config and prompt generation
+
+    For now, this provides the CLI interface and shows what's coming.
+    """
+    orchestrator_dir = get_orchestrator_dir()
+    template_file = orchestrator_dir / "czarina-core" / "templates" / "ANALYSIS_TEMPLATE.md"
+
+    print("🔍 Czarina Project Analysis")
+    print("=" * 60)
+    print()
+
+    # Check if plan file exists
+    plan_path = Path(plan_file)
+    if not plan_path.exists():
+        print(f"❌ Plan file not found: {plan_file}")
+        sys.exit(1)
+
+    print(f"📄 Input Plan: {plan_file}")
+    print()
+
+    # Read plan file
+    with open(plan_path) as f:
+        plan_content = f.read()
+
+    plan_lines = len(plan_content.split('\n'))
+    plan_words = len(plan_content.split())
+
+    print(f"📊 Plan Statistics:")
+    print(f"   Lines: {plan_lines}")
+    print(f"   Words: {plan_words}")
+    print(f"   Characters: {len(plan_content)}")
+    print()
+
+    print("⚠️  ANALYSIS FEATURE - COMING SOON")
+    print()
+    print("This feature is not yet fully implemented.")
+    print("Full implementation will provide:")
+    print()
+    print("  ✅ AI-powered project analysis")
+    print("  ✅ Optimal worker count and type suggestions")
+    print("  ✅ Version breakdown with token budgets")
+    print("  ✅ Auto-generated config.json")
+    print("  ✅ Auto-generated worker prompts")
+    print("  ✅ Token efficiency estimates")
+    print()
+    print("📋 Implementation Status:")
+    print(f"   Template: {'✅' if template_file.exists() else '❌'} {template_file}")
+    print(f"   Feature Spec: ✅ czarina-inbox/features/2025-11-30-project-analysis.md")
+    print(f"   CLI Interface: ✅ This command")
+    print(f"   AI Integration: ⏳ Pending")
+    print(f"   Config Generation: ⏳ Pending")
+    print(f"   Prompt Generation: ⏳ Pending")
+    print()
+    print("💡 To implement: See czarina-inbox/features/2025-11-30-project-analysis.md")
+    print()
+    print("For now, you can:")
+    print("  1. Manually create .czarina/ structure: czarina init")
+    print("  2. Review planning standards: docs/PROJECT_PLANNING_STANDARDS.md")
+    print("  3. Use analysis template: czarina-core/templates/ANALYSIS_TEMPLATE.md")
+    print()
+
+    if output_file:
+        print(f"📝 Would save analysis to: {output_file}")
+
+    if interactive:
+        print("📋 Interactive mode would prompt for approval here")
+
+    print("=" * 60)
+
+
 def show_usage():
     """Show usage information"""
     print(__doc__)
     print("\nExamples:")
+    print("  # Analyze implementation plan")
+    print("  czarina analyze implementation-plan.md")
+    print("")
     print("  # Initialize in current project")
     print("  cd ~/my-project && czarina init")
     print("")
@@ -572,7 +653,21 @@ def main():
 
     command = sys.argv[1]
 
-    if command == "init":
+    if command == "analyze":
+        if len(sys.argv) < 3:
+            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--interactive]")
+            sys.exit(1)
+        plan_file = sys.argv[2]
+        output_file = None
+        interactive = False
+        # Parse optional flags
+        for i in range(3, len(sys.argv)):
+            if sys.argv[i] == "--output" and i + 1 < len(sys.argv):
+                output_file = sys.argv[i + 1]
+            elif sys.argv[i] == "--interactive":
+                interactive = True
+        cmd_analyze(plan_file, output_file, interactive)
+    elif command == "init":
         project_name = sys.argv[2] if len(sys.argv) > 2 else None
         cmd_init(project_name)
     elif command == "list":
