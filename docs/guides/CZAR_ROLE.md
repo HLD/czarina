@@ -1,12 +1,18 @@
 # The Czar: Orchestration Coordinator
 
-**The Czar is the critical Claude Code agent that manages the entire Czarina orchestration process.**
+**The Czar is the critical coordinating role that manages the entire Czarina orchestration process.**
 
 ---
 
 ## 🎭 What is the Czar?
 
-The **Czar** is a Claude Code agent (Desktop or Web) that acts as the autonomous coordinator for your Czarina project. While workers code in parallel, the Czar monitors, manages, and ensures everything runs smoothly.
+The **Czar** is the autonomous coordinator for your Czarina project - typically a human or AI agent that oversees the orchestration. While workers code in parallel, the Czar monitors, manages, and ensures everything runs smoothly.
+
+**Who can be the Czar:**
+- **Claude Code** (Desktop or Web) - Most common
+- **Human** - Direct supervision
+- **Cursor** - IDE-based monitoring
+- **Any AI agent** - As long as they can monitor tmux and manage processes
 
 **Think of it as:** The conductor of an orchestra - each musician (worker) plays their part, but the conductor ensures harmony, timing, and quality.
 
@@ -68,9 +74,9 @@ czarina daemon start
 tmux attach -t czarina-awesome-app
 ```
 
-### As Claude Code (You are the Czar)
+### As Czar (AI Agent or Human)
 
-**You say in Claude Code:**
+**If you're an AI agent, say:**
 ```
 I am the Czar for this Czarina orchestration.
 
@@ -89,7 +95,13 @@ My responsibilities:
 Show me the current status and what I should focus on first.
 ```
 
-**Claude Code auto-discovers the .czarina/ directory and loads:**
+**If you're human:**
+- Review `.czarina/config.json` for project configuration
+- Use `czarina status` for quick overview
+- Check `tmux attach -t czarina-awesome-app` for worker activity
+- Follow the monitoring commands below
+
+**The Czar role includes:**
 - Project configuration
 - Worker assignments
 - Current version status
@@ -505,6 +517,7 @@ done
 
 **Remember:** You're not micromanaging - you're orchestrating. Let workers work autonomously, step in when needed, and keep the project moving forward. 🎭
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Active
-**Audience:** Claude Code agents acting as Czar
+**Audience:** AI agents or humans acting as Czar
+**Note:** While any agent or human can be Czar, Claude Code is commonly used due to its ability to monitor tmux and coordinate autonomously

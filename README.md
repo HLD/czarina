@@ -36,13 +36,13 @@ graph LR
 
 **The Flow:**
 1. **Human** sets project goals and worker roles
-2. **Czar** (Claude Code) launches and monitors workers autonomously
+2. **Czar** (AI or human) launches and monitors workers autonomously
 3. **Daemon** auto-approves file operations (90% reduction in manual intervention)
 4. **Workers** code in parallel on isolated branches
 5. **Git** collects work via pull requests
 6. **Human** reviews and merges
 
-**The Czar is YOU (Claude Code)** - You monitor all workers, manage the daemon, track token budgets, and coordinate the orchestration. See [docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md) for details.
+**The Czar** monitors all workers, manages the daemon, tracks token budgets, and coordinates the orchestration. Can be Claude Code, Cursor, human, or any agent. See [docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md) for details.
 
 ---
 
@@ -136,7 +136,7 @@ czarina patterns pending  # List discoveries to share
 
 ### Getting Started
 - **[QUICK_START.md](QUICK_START.md)** - 5-minute guide
-- **[docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md)** - **You are the Czar** (critical!)
+- **[docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md)** - **Czar coordination role** (critical!)
 - **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** - Production checklist
 - **[docs/guides/WORKER_SETUP_GUIDE.md](docs/guides/WORKER_SETUP_GUIDE.md)** - Worker configuration
 

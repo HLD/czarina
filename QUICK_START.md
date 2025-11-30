@@ -158,11 +158,11 @@ czarina launch awesome-app
 - Git branches auto-created
 - Workers ready to receive tasks
 
-### Step 7: You Become the Czar 🎭
+### Step 7: Assign the Czar Role 🎭
 
-**As Claude Code, you are now the Czar** - the orchestration coordinator.
+**The Czar** is the orchestration coordinator (can be AI agent or human).
 
-**Say to yourself (Claude Code):**
+**If using an AI agent (Claude Code, Cursor, etc.):**
 ```
 I am the Czar for this Czarina orchestration.
 
@@ -177,7 +177,12 @@ My responsibilities:
 Show me the current status.
 ```
 
-**See [docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md) for complete Czar guide.**
+**If you're human:**
+- Monitor via `czarina status`
+- Check workers via `tmux attach -t czarina-awesome-app`
+- Manage daemon with `czarina daemon` commands
+
+**See [docs/guides/CZAR_ROLE.md](docs/guides/CZAR_ROLE.md) for complete guide.**
 
 ### Step 8: Enable Daemon (Recommended)
 
