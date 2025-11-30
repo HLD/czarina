@@ -5,6 +5,55 @@ These rules ensure the Czarina codebase remains clean, well-documented, and main
 
 ---
 
+## 🚨 Project Planning Standards (MANDATORY)
+
+### Version-Based Planning (Not Time-Based)
+
+**ABSOLUTE RULES:**
+
+**❌ NEVER plan in:**
+- Weeks or days ("2 weeks", "Sprint 1-2")
+- Calendar dates ("Q1 2025", "January release")
+- Sprints or iterations
+- Time-based milestones
+
+**✅ ALWAYS plan in:**
+- Semantic versions: `v0.1.0`, `v0.2.0`, `v1.0.0`
+- Phases for large features: `v0.2.1-phase1`, `v0.2.1-phase2`
+- Token budgets: projected and recorded
+- Efficiency ratios: recorded/projected tokens
+
+**Version numbering:**
+```
+MAJOR.MINOR.PATCH[-phase]
+
+v0.1.0          Foundation
+v0.2.0          Feature set
+v0.2.1-phase1   Large feature, part 1
+v0.2.1-phase2   Large feature, part 2
+v0.3.0          Integration
+v1.0.0          Production
+```
+
+**Token metrics (required for every version):**
+```json
+{
+  "version": "v0.2.1-phase2",
+  "token_budget": {
+    "projected": 280000,
+    "recorded": 142000,
+    "remaining": 138000,
+    "efficiency": 0.51
+  }
+}
+```
+
+**See [docs/PROJECT_PLANNING_STANDARDS.md](docs/PROJECT_PLANNING_STANDARDS.md) for complete guide.**
+
+**Enforcement:** Any document or plan using time-based planning must be rejected.
+
+---
+
 ## 📂 File Organization Rules
 
 ### Root Directory
