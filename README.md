@@ -356,6 +356,7 @@ graph TB
 ### 📁 Full Documentation
 - **[docs/](docs/)** - All documentation hub
 - **[czarina-core/docs/](czarina-core/docs/)** - Framework documentation
+- **[czarina-core/patterns/](czarina-core/patterns/)** - Development patterns (error recovery, tool use)
 - **[czarina-inbox/](czarina-inbox/)** - Improvement inbox
 - **[.cursorrules](.cursorrules)** - Contribution standards
 

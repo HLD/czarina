@@ -311,6 +311,32 @@ def cmd_list():
                 print(f"  • {project_name:20} - (no config)")
 
 
+def cmd_patterns_update():
+    """Update development patterns from upstream"""
+    orchestrator_dir = get_orchestrator_dir()
+    script_path = orchestrator_dir / "czarina-core" / "patterns" / "update-patterns.sh"
+    subprocess.run(["bash", str(script_path)])
+
+
+def cmd_patterns_version():
+    """Show current pattern version"""
+    orchestrator_dir = get_orchestrator_dir()
+    version_file = orchestrator_dir / "czarina-core" / "patterns" / ".pattern-version"
+    if version_file.exists():
+        with open(version_file) as f:
+            lines = f.readlines()
+            version = lines[0].strip()
+            if len(lines) > 1:
+                updated = lines[1].strip()
+                print(f"📚 Pattern version: {version}")
+                print(f"📅 Last updated: {updated}")
+            else:
+                print(f"📚 Pattern version: {version}")
+    else:
+        print("📚 Patterns not yet downloaded")
+        print("💡 Run: czarina patterns update")
+
+
 def show_usage():
     """Show usage information"""
     print(__doc__)
@@ -323,6 +349,8 @@ def show_usage():
     print("  czarina status sark-v2")
     print("  czarina daemon start sark-v2")
     print("  czarina daemon logs sark-v2")
+    print("  czarina patterns update")
+    print("  czarina patterns version")
 
 
 def main():
@@ -376,6 +404,19 @@ def main():
         else:
             print(f"❌ Unknown daemon subcommand: {subcommand}")
             print("   Valid: start, stop, logs, status")
+            sys.exit(1)
+    elif command == "patterns":
+        if len(sys.argv) < 3:
+            print("❌ Usage: czarina patterns <update|version>")
+            sys.exit(1)
+        subcommand = sys.argv[2]
+        if subcommand == "update":
+            cmd_patterns_update()
+        elif subcommand == "version":
+            cmd_patterns_version()
+        else:
+            print(f"❌ Unknown patterns subcommand: {subcommand}")
+            print("   Valid: update, version")
             sys.exit(1)
     elif command in ["-h", "--help", "help"]:
         show_usage()
