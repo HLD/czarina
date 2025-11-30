@@ -1,168 +1,176 @@
 # Czarina Worker Setup Guide
 
-## The Problem We Solved
+## The Czarina Way: Embedded Orchestration
 
-Previously, workers would commit directly to `main` because:
-1. Worker prompts had NO git workflow instructions
-2. Branches weren't pre-created
-3. Dashboard couldn't track progress on `main`
+Czarina orchestration lives directly in your project repository as `.czarina/` (similar to `.git/`). This makes orchestration portable, version-controlled, and collaborative.
 
-## The Czarina Way: Proper Workflow
+## Quick Start
 
 ### For Project Managers
 
-When setting up a new orchestration project:
+When setting up orchestration for a project:
 
 ```bash
-# 1. List available projects
-./czarina list
+# 1. Go to your project
+cd ~/my-projects/awesome-app
 
-# 2. Initialize git branches for all workers
-./czarina init <project-name>
+# 2. Initialize Czarina (creates .czarina/ directory)
+czarina init
 
-# 3. Launch the dashboard to monitor progress
-./czarina dashboard <project-name>
+# 3. Configure workers
+nano .czarina/config.json
+nano .czarina/workers/worker1.md
 
-# 4. Launch workers (in another terminal)
-./czarina launch <project-name>
+# 4. Commit orchestration setup
+git add .czarina/
+git commit -m "Add Czarina orchestration"
+
+# 5. Launch workers
+czarina launch
+
+# 6. (Optional) Start daemon
+czarina daemon start
 ```
 
-### What `czarina init` Does
+### What `czarina init` Creates
 
-The `init` command:
-1. ✅ Checks out `main` and pulls latest
-2. ✅ Creates a branch for each worker (from config)
-3. ✅ Pushes branches to remote
-4. ✅ Preserves existing branches that have work
-5. ✅ Offers to recreate empty branches
+The `init` command creates `.czarina/` in your project with:
+1. ✅ `config.json` - Worker configuration
+2. ✅ `workers/` - Worker role definitions (markdown files)
+3. ✅ `status/` - Runtime logs (gitignored)
+4. ✅ `README.md` - Quick reference for workers
+5. ✅ `.worker-init` - Auto-discovery script
 
 **Example:**
 ```bash
-$ ./czarina init sark-v2
+$ cd ~/my-projects/awesome-app
+$ czarina init
 
-╔════════════════════════════════════════════════════════════╗
-║         Git Branch Initialization for Workers             ║
-╚════════════════════════════════════════════════════════════╝
+✅ Czarina initialized successfully!
 
-Project: SARK v2.0 - Protocol-Agnostic Transformation
-Repository: /home/jhenry/Source/GRID/sark
+📁 Created in: /home/you/my-projects/awesome-app
+📋 Project: awesome-app (awesome-app)
 
-📥 Updating main branch...
+📝 Next steps:
+  1. Edit .czarina/config.json - configure workers
+  2. Edit .czarina/workers/*.md - define worker roles
+  3. git add .czarina/
+  4. git commit -m 'Add Czarina orchestration'
+  5. czarina launch
 
-🌿 Initializing worker branches...
-
-→ Processing: engineer1
-  Branch: feat/v2-lead-architect
-  ✅ Branch created and pushed
-
-→ Processing: engineer2
-  Branch: feat/v2-http-adapter
-  ✅ Branch created and pushed
-
-...
-
-✅ All worker branches initialized!
+💡 Read more: ~/Source/GRID/claude-orchestrator/docs/guides/WORKER_SETUP_GUIDE.md
 ```
 
 ### Worker Prompt Requirements
 
-**ALL worker prompts MUST include git workflow instructions.**
+**Worker prompts define each worker's role and responsibilities.**
 
-Use the template at: `czarina-core/templates/WORKER_GIT_WORKFLOW.md`
+Located in `.czarina/workers/`, each worker gets a markdown file that includes:
+- Role and responsibilities
+- Files they should work on
+- Git workflow (branch name, commit/PR process)
+- Links to pattern library
 
-The template includes:
-- Branch creation commands
-- Commit message conventions
-- PR creation workflow
-- Verification checklist
-
-### Generating Worker Prompts with Git Instructions
-
-If you have base prompts without git workflow:
-
-```bash
-cd czarina-core
-
-./generate-prompts.sh \
-  ../projects/sark-v2-orchestration/config.sh \
-  ../projects/sark-v2-orchestration/prompts-base \
-  ../projects/sark-v2-orchestration/prompts
-```
-
-This will:
-1. Read your base prompts (task descriptions only)
-2. Inject git workflow instructions with worker-specific values
-3. Output complete prompts ready for workers
-
-### For Workers (Claude Agents)
-
-When you receive your worker prompt, you'll see clear git instructions:
-
+**Example worker prompt:**
 ```markdown
-## 🔀 Git Workflow Instructions
+# Backend API Developer
 
-**CRITICAL: You MUST follow this git workflow for all your work.**
+## Role
+Build the REST API backend for Awesome App
 
-### 1. Branch Setup (First Thing!)
+## Responsibilities
+- Design and implement REST endpoints
+- Database schema and migrations
+- Authentication and authorization
 
-cd /home/jhenry/Source/GRID/sark
-git checkout main
-git pull origin main
-git checkout -b feat/v2-http-adapter
+## Files
+- src/api/
+- src/models/
+- src/auth/
+
+## Git Workflow
+Branch: feat/backend-api
+
+When complete:
+1. Commit changes
+2. Push to branch
+3. Create PR to main
+
+## Pattern Library
+Review before starting:
+- czarina-core/patterns/ERROR_RECOVERY_PATTERNS.md
+- czarina-core/patterns/CZARINA_PATTERNS.md
 ```
 
-**Follow the instructions exactly!**
+### For Workers (AI Agents)
 
-### Dashboard Tracking
+Workers discover their role automatically through:
 
-The dashboard tracks your progress by monitoring:
-1. **Branch existence** - Does your assigned branch exist?
-2. **Commits** - How many commits ahead of main?
-3. **Files changed** - How many files modified?
-4. **PR status** - Has PR been created? Merged?
+1. **Auto-discovery script:**
+   ```bash
+   ./.czarina/.worker-init worker1
+   ```
 
-If you don't work on your assigned branch, **the dashboard won't see your work!**
+2. **Or just say (in Claude Code Web):**
+   ```
+   "You are worker1"
+   ```
+
+The worker prompt will be loaded automatically, showing:
+- Your role and responsibilities
+- Files you should work on
+- Git branch to use
+- Pattern library to review
+
+**Follow the git workflow in your prompt!** Each worker should:
+1. Work on their assigned branch
+2. Commit regularly
+3. Create PR when done
+4. Wait for review before moving on
 
 ## Project Lifecycle
 
 ### Initial Setup (Once per project)
 
 ```bash
-# 1. Create project structure
-mkdir -p projects/myproject-orchestration/{configs,prompts,workers,status,logs}
+# 1. Go to your project
+cd ~/my-projects/awesome-app
 
-# 2. Create config.sh with worker definitions
-# See: projects/sark-v2-orchestration/config.sh for example
+# 2. Initialize Czarina
+czarina init
 
-# 3. Create base worker prompts (task descriptions)
-# See: projects/sark-v2-orchestration/prompts/ for examples
+# 3. Configure workers
+nano .czarina/config.json
+nano .czarina/workers/worker1.md
 
-# 4. Initialize branches
-./czarina init myproject
+# 4. Commit orchestration
+git add .czarina/
+git commit -m "Add Czarina orchestration"
 ```
 
 ### Daily Operations
 
 ```bash
-# Morning: Check status
-./czarina status myproject
+# From project directory
+cd ~/my-projects/awesome-app
 
-# Launch dashboard (keep running in one terminal)
-./czarina dashboard myproject
+# Check status
+czarina status
 
-# Launch workers (in another terminal/tmux)
-./czarina launch myproject
+# Launch workers
+czarina launch
 
-# Monitor progress in dashboard
-# Workers commit to their branches
-# Dashboard shows real-time progress
+# Start daemon (optional but recommended)
+czarina daemon start
+
+# Monitor via tmux
+tmux attach -t czarina-awesome-app
 ```
 
 ### Integration & PRs
 
 ```bash
 # Workers create PRs when their work is ready
-# PR workflow is in the worker prompt template
 
 # Review PRs
 gh pr list
@@ -170,96 +178,112 @@ gh pr list
 # Merge PRs
 gh pr merge <number>
 
-# Dashboard updates automatically to show merged status
+# Branches are managed automatically by workers
 ```
 
 ## Troubleshooting
 
-### "Dashboard shows no results"
+### "Workers won't start"
 
-**Cause:** Workers committed to `main` instead of their branches
-
-**Fix:**
-1. Check if work is on main: `git log --oneline main | head -20`
-2. For future work: Ensure workers follow git workflow instructions
-3. Run `czarina init <project>` to create branches for remaining work
-
-### "Worker doesn't know which branch to use"
-
-**Cause:** Worker prompt missing git workflow section
+**Cause:** Agent not installed or config syntax error
 
 **Fix:**
-1. Update prompt using `generate-prompts.sh`
-2. Or manually add git workflow from template
-3. Relaunch worker with updated prompt
+1. Check agent installed: `which aider` or `which claude`
+2. Check config syntax: `cat .czarina/config.json | jq .`
+3. Check worker prompts exist: `ls -la .czarina/workers/`
 
-### "Branch already exists with different work"
+### "Can't find project"
 
-**Cause:** `czarina init` found existing branch
+**Cause:** Not in project directory or project name wrong
 
-**Options:**
-1. Keep it (if it has valuable work)
-2. Recreate it (if it's stale/wrong)
-3. Manually resolve: `git branch -D <branch>` then re-init
+**Fix:**
+1. From project directory: `cd ~/my-projects/awesome-app && czarina status`
+2. Or use project name: `czarina status awesome-app`
+3. List all projects: `czarina list`
+
+### "Daemon not approving"
+
+**Cause:** Daemon not running or agent limitation
+
+**Fix:**
+1. Check daemon running: `czarina daemon status`
+2. Check logs: `czarina daemon logs`
+3. Consider using Aider for 95-98% autonomy
+4. Restart daemon: `czarina daemon stop && czarina daemon start`
 
 ## Best Practices
 
 ### ✅ DO
 
-- Run `czarina init` before launching workers
-- Include git workflow in ALL worker prompts
-- Monitor dashboard during worker execution
+- Initialize Czarina in your project: `czarina init`
+- Include git workflow in worker prompts
+- Commit .czarina/ to version control
+- Use Aider for maximum autonomy (95-98%)
 - Review PRs before merging
-- Keep worker branches focused on their assigned tasks
+- Start with 5-10 workers (SARK-proven)
 
 ### ❌ DON'T
 
-- Launch workers without initializing branches
-- Give workers prompts without git instructions
+- Skip the pattern library: `czarina patterns update`
+- Launch without configuring workers properly
 - Let workers commit directly to `main`
 - Merge PRs without reviewing
-- Reuse worker branches for different tasks
+- Start too small (2-3 workers underutilizes the system)
 
-## Config.sh Structure
+## Config.json Structure
 
-```bash
-# Project settings
-export PROJECT_ROOT="/path/to/repo"
-export PROJECT_NAME="My Project v1.0"
-export ORCHESTRATOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+Located at `.czarina/config.json`:
 
-# Worker definitions
-# Format: worker_id|branch_name|task_file|description
-export WORKER_DEFINITIONS=(
-    "worker1|feat/task1|prompts/WORKER-1.md|Task 1 Description"
-    "worker2|feat/task2|prompts/WORKER-2.md|Task 2 Description"
-    ...
-)
-
-# Omnibus configuration (optional)
-export OMNIBUS_BRANCH="feat/omnibus"
-export OMNIBUS_MERGE_ORDER=("worker1" "worker2" ...)
-
-# Checkpoints (optional)
-export CHECKPOINTS=(
-    "week1_foundation|Week 1: Foundation"
-    "week2_features|Week 2: Features"
-    ...
-)
+```json
+{
+  "project": {
+    "name": "Awesome App",
+    "slug": "awesome-app",
+    "repository": "/home/you/my-projects/awesome-app",
+    "orchestration_dir": ".czarina"
+  },
+  "workers": [
+    {
+      "id": "backend",
+      "agent": "aider",
+      "branch": "feat/backend-api",
+      "description": "Backend API Developer"
+    },
+    {
+      "id": "frontend",
+      "agent": "claude-code",
+      "branch": "feat/frontend-ui",
+      "description": "Frontend UI Developer"
+    },
+    {
+      "id": "tests",
+      "agent": "aider",
+      "branch": "feat/test-coverage",
+      "description": "Test Engineer"
+    }
+  ],
+  "daemon": {
+    "enabled": true,
+    "auto_approve": ["read", "write", "commit"]
+  }
+}
 ```
 
 ## Summary
 
 **The Czarina workflow ensures:**
-1. ✅ Every worker has a dedicated branch
-2. ✅ Workers know exactly which branch to use
-3. ✅ Dashboard can track progress in real-time
+1. ✅ Orchestration lives in your project (.czarina/)
+2. ✅ Every worker has a dedicated branch
+3. ✅ Workers know exactly which branch to use
 4. ✅ Work is isolated and reviewable
 5. ✅ Integration is controlled via PRs
 
-**One command to set it all up:**
+**Quick start:**
 ```bash
-./czarina init <project>
+cd ~/my-projects/awesome-app
+czarina init
+nano .czarina/config.json
+czarina launch
 ```
 
-Then launch and monitor! 🚀
+Then let your AI team build! 🚀

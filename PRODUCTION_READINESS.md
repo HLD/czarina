@@ -83,13 +83,14 @@ Before using Czarina on a production project:
 - [ ] PR workflow enabled
 
 ### 3. Project Configuration
-- [ ] Create project: `./czarina init <project-name>`
-- [ ] Edit config.json (workers, agents, repo path)
-- [ ] Create worker prompts in workers/
-- [ ] Review embedded orchestration setup
+- [ ] Navigate to your project: `cd ~/my-projects/awesome-app`
+- [ ] Initialize Czarina: `czarina init`
+- [ ] Edit .czarina/config.json (workers, agents)
+- [ ] Create worker prompts in .czarina/workers/
+- [ ] Commit orchestration: `git add .czarina/`
 
 ### 4. Pattern Library
-- [ ] Update patterns: `./czarina patterns update`
+- [ ] Update patterns: `czarina patterns update`
 - [ ] Review ERROR_RECOVERY_PATTERNS.md
 - [ ] Review CZARINA_PATTERNS.md for multi-agent tips
 
@@ -97,7 +98,7 @@ Before using Czarina on a production project:
 - [ ] Review DAEMON_SYSTEM.md
 - [ ] Understand agent autonomy levels
 - [ ] Choose: Aider (95-98%) or Claude Code (70-80%)
-- [ ] Test daemon: `./czarina daemon start <project>`
+- [ ] Test daemon: `czarina daemon start`
 
 ### 6. First Session
 - [ ] Start small (2-3 workers)
@@ -113,22 +114,23 @@ Before using Czarina on a production project:
 
 ```bash
 # 1. Update patterns
-./czarina patterns update
+czarina patterns update
 
-# 2. Create project
-./czarina init my-project
+# 2. Go to your project
+cd ~/my-projects/awesome-app
 
-# 3. Configure (edit these files)
-cd czarina-my-project
-nano config.json          # Set repo path, workers
-nano workers/worker1.md   # Create worker prompts
+# 3. Initialize Czarina
+czarina init
 
-# 4. Launch
-cd ..
-./czarina launch my-project
+# 4. Configure (edit these files)
+nano .czarina/config.json          # Set workers, agents
+nano .czarina/workers/worker1.md   # Create worker prompts
 
-# 5. (Optional) Start daemon
-./czarina daemon start my-project
+# 5. Launch
+czarina launch
+
+# 6. (Optional) Start daemon
+czarina daemon start
 ```
 
 ### Full Setup (20 minutes)
@@ -287,7 +289,7 @@ Czarina is ready for real projects. Start small, follow the guides, and scale up
 ---
 
 **Approved for Production:** ✅
-**Recommended Starting Point:** 2-3 workers, Aider agent, daemon enabled
+**Recommended Starting Point:** 5-10 workers (SARK-proven), Aider agent, daemon enabled
 **Support:** Documentation, patterns, and community backchannel active
 
 **Go build something amazing!** 🚀

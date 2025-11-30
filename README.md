@@ -49,7 +49,7 @@ graph TB
 - ⚡ **Auto-Approval Daemon** - Reduces human intervention from 100% to ~10%
 - 🔀 **Git Orchestration** - Automated branching, PRs, and merging
 - 📊 **Live Dashboard** - Real-time worker status and progress
-- 🎯 **Embedded Mode** - Lives in your project repo, no external dependencies
+- 🎯 **Embedded Mode** - `.czarina/` lives in your project repo (like `.git/`)
 
 ---
 
@@ -88,23 +88,26 @@ graph LR
 ## ⚡ Quick Start
 
 ```bash
-# 1. Clone the repository
-git clone <repository-url> czarina-orchestrator
-cd czarina-orchestrator
+# 1. Install Czarina (one-time setup)
+git clone <repository-url> ~/Source/GRID/claude-orchestrator
+ln -s ~/Source/GRID/claude-orchestrator/czarina ~/.local/bin/czarina
+czarina patterns update
 
-# 2. Create a new project
-./czarina init my-project
+# 2. Go to your project
+cd ~/my-projects/awesome-app
 
-# 3. Configure workers (edit config.json)
-cd czarina-my-project
-nano config.json
+# 3. Initialize Czarina
+czarina init
 
-# 4. Launch orchestration
-cd ..
-./czarina launch my-project
+# 4. Configure workers
+nano .czarina/config.json
+nano .czarina/workers/worker1.md
 
-# 5. (Optional) Start autonomous daemon
-./czarina daemon start my-project
+# 5. Launch orchestration
+czarina launch
+
+# 6. (Optional) Start autonomous daemon
+czarina daemon start
 ```
 
 **That's it!** Your AI workers are now collaborating on your project. 🎉
@@ -238,21 +241,22 @@ Refactoring Czarina to be fully agent-agnostic:
 
 ```bash
 # Project management
-./czarina init <project-name>           # Create new project
-./czarina launch <project-name>         # Launch all workers
-./czarina stop <project-name>           # Stop all workers
-./czarina status <project-name>         # Show status
+czarina init [project-name]        # Initialize in current directory
+czarina list                       # List all projects
+czarina launch [project]           # Launch workers (from project dir or by name)
+czarina status [project]           # Show status
 
 # Daemon management
-./czarina daemon start <project-name>   # Start auto-approval daemon
-./czarina daemon stop <project-name>    # Stop daemon
-./czarina daemon status <project-name>  # Check daemon status
-./czarina daemon logs <project-name>    # View daemon logs
+czarina daemon start [project]     # Start auto-approval daemon
+czarina daemon stop [project]      # Stop daemon
+czarina daemon status [project]    # Check daemon status
+czarina daemon logs [project]      # View daemon logs
 
-# Worker management
-./czarina worker start <project> <role> # Start single worker
-./czarina worker stop <project> <role>  # Stop single worker
-./czarina worker attach <project> <role># Attach to worker session
+# Pattern library
+czarina patterns update            # Update pattern library
+czarina patterns version           # Show pattern version
+czarina patterns pending           # List patterns to contribute
+czarina patterns contribute        # Show contribution guide
 ```
 
 ---
@@ -272,39 +276,39 @@ graph LR
 
 **Step-by-step:**
 
-1. **Initialize:**
+1. **Initialize in your project:**
    ```bash
-   ./czarina init my-project
-   cd czarina-my-project
+   cd ~/my-projects/awesome-app
+   czarina init
    ```
 
-2. **Configure** (`config.json`):
+2. **Configure** (`.czarina/config.json`):
    ```json
    {
      "project": {
-       "name": "My Project",
-       "repository": "/path/to/repo"
+       "name": "Awesome App",
+       "slug": "awesome-app",
+       "repository": "/home/you/my-projects/awesome-app"
      },
      "workers": [
-       {"role": "architect", "agent": "claude-code"},
-       {"role": "backend", "agent": "aider"},
-       {"role": "frontend", "agent": "cursor"}
+       {"id": "architect", "agent": "claude-code", "branch": "feat/architecture"},
+       {"id": "backend", "agent": "aider", "branch": "feat/backend"},
+       {"id": "frontend", "agent": "cursor", "branch": "feat/frontend"}
      ]
    }
    ```
 
 3. **Create prompts:**
    ```bash
-   nano workers/architect.md
-   nano workers/backend.md
-   nano workers/frontend.md
+   nano .czarina/workers/architect.md
+   nano .czarina/workers/backend.md
+   nano .czarina/workers/frontend.md
    ```
 
 4. **Launch:**
    ```bash
-   cd ..
-   ./czarina launch my-project
-   ./czarina daemon start my-project  # Optional but recommended
+   czarina launch
+   czarina daemon start  # Optional but recommended
    ```
 
 See [docs/guides/WORKER_SETUP_GUIDE.md](docs/guides/WORKER_SETUP_GUIDE.md) for detailed guidance.
