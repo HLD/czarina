@@ -5,6 +5,8 @@ Simple interface for managing multi-agent orchestration projects
 
 Usage:
     czarina analyze <plan-file>     - Analyze plan and suggest orchestration
+    czarina analyze <plan-file> --init - Analyze and initialize project
+    czarina analyze <plan-file> --output analysis.json - Save analysis to file
     czarina init [project-name]     - Initialize orchestration in current dir
     czarina list                    - List all Czarina projects
     czarina launch [project]        - Launch project workers
@@ -25,6 +27,9 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
+
+# Add czarina-core to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "czarina-core"))
 
 
 def get_orchestrator_dir():
@@ -547,19 +552,15 @@ def cmd_patterns_contribute():
     print("  3. Follow guide to submit upstream")
 
 
-def cmd_analyze(plan_file, output_file=None, interactive=False):
+def cmd_analyze(plan_file, output_file=None, auto_init=False):
     """
     Analyze implementation plan and suggest orchestration setup
 
-    This is a STUB implementation. Full implementation requires:
-    - AI integration (Claude API or local LLM)
-    - Analysis template processing
-    - Config and prompt generation
-
-    For now, this provides the CLI interface and shows what's coming.
+    Uses Claude AI to analyze the plan and generate complete orchestration setup.
     """
+    from analyzer import ProjectAnalyzer
+
     orchestrator_dir = get_orchestrator_dir()
-    template_file = orchestrator_dir / "czarina-core" / "templates" / "ANALYSIS_TEMPLATE.md"
 
     print("🔍 Czarina Project Analysis")
     print("=" * 60)
@@ -587,39 +588,212 @@ def cmd_analyze(plan_file, output_file=None, interactive=False):
     print(f"   Characters: {len(plan_content)}")
     print()
 
-    print("⚠️  ANALYSIS FEATURE - COMING SOON")
-    print()
-    print("This feature is not yet fully implemented.")
-    print("Full implementation will provide:")
-    print()
-    print("  ✅ AI-powered project analysis")
-    print("  ✅ Optimal worker count and type suggestions")
-    print("  ✅ Version breakdown with token budgets")
-    print("  ✅ Auto-generated config.json")
-    print("  ✅ Auto-generated worker prompts")
-    print("  ✅ Token efficiency estimates")
-    print()
-    print("📋 Implementation Status:")
-    print(f"   Template: {'✅' if template_file.exists() else '❌'} {template_file}")
-    print(f"   Feature Spec: ✅ czarina-inbox/features/2025-11-30-project-analysis.md")
-    print(f"   CLI Interface: ✅ This command")
-    print(f"   AI Integration: ⏳ Pending")
-    print(f"   Config Generation: ⏳ Pending")
-    print(f"   Prompt Generation: ⏳ Pending")
-    print()
-    print("💡 To implement: See czarina-inbox/features/2025-11-30-project-analysis.md")
-    print()
-    print("For now, you can:")
-    print("  1. Manually create .czarina/ structure: czarina init")
-    print("  2. Review planning standards: docs/PROJECT_PLANNING_STANDARDS.md")
-    print("  3. Use analysis template: czarina-core/templates/ANALYSIS_TEMPLATE.md")
-    print()
+    # Create analyzer and run analysis
+    try:
+        analyzer = ProjectAnalyzer(orchestrator_dir)
+        print("🤖 Analyzing with Claude AI...")
+        print()
 
-    if output_file:
-        print(f"📝 Would save analysis to: {output_file}")
+        analysis = analyzer.analyze(plan_content, plan_path)
 
-    if interactive:
-        print("📋 Interactive mode would prompt for approval here")
+        # Print summary
+        analyzer.print_summary(analysis)
+
+        # Save analysis if output file specified
+        if output_file:
+            analyzer.save_analysis(analysis, output_file)
+            print(f"💾 Analysis saved to: {output_file}")
+            print()
+
+        # Auto-initialize project if requested
+        if auto_init:
+            print("🚀 Auto-initializing project...")
+            print()
+
+            current_dir = Path.cwd()
+
+            # Check if already initialized
+            czarina_dir = current_dir / ".czarina"
+            if czarina_dir.exists():
+                print(f"❌ Project already initialized in {current_dir}")
+                print(f"   .czarina/ directory exists")
+                print()
+                print("💡 To re-analyze, delete .czarina/ first or use --output to save analysis only")
+                sys.exit(1)
+
+            # Create .czarina/ structure
+            czarina_dir.mkdir()
+            (czarina_dir / "workers").mkdir()
+            (czarina_dir / "status").mkdir()
+
+            # Generate and save config.json
+            config = analyzer.generate_config(analysis, current_dir)
+            config_file = czarina_dir / "config.json"
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            print(f"✅ Created: .czarina/config.json")
+
+            # Generate and save worker prompts
+            worker_prompts = analyzer.generate_worker_prompts(analysis)
+            for worker_id, prompt_content in worker_prompts.items():
+                worker_file = czarina_dir / "workers" / f"{worker_id}.md"
+                with open(worker_file, 'w') as f:
+                    f.write(prompt_content)
+                print(f"✅ Created: .czarina/workers/{worker_id}.md")
+
+            # Save complete analysis
+            analysis_file = czarina_dir / "analysis.json"
+            analyzer.save_analysis(analysis, analysis_file)
+            print(f"✅ Created: .czarina/analysis.json")
+
+            # Create .worker-init script
+            worker_init = czarina_dir / ".worker-init"
+            with open(worker_init, "w") as f:
+                f.write(f"""#!/bin/bash
+# Czarina Worker Auto-Init
+# This script helps workers discover their role and setup
+
+CZARINA_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}})" && pwd)"
+CONFIG_FILE="$CZARINA_DIR/config.json"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ Config file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+# Show available workers
+echo "📋 Available workers:"
+jq -r '.workers[] | "  • \\(.id) - \\(.description)"' "$CONFIG_FILE"
+echo ""
+
+# If worker ID provided, load it
+if [ -n "$1" ]; then
+    WORKER_ID="$1"
+    WORKER_FILE="$CZARINA_DIR/workers/$WORKER_ID.md"
+
+    if [ -f "$WORKER_FILE" ]; then
+        echo "✅ Loading worker: $WORKER_ID"
+        cat "$WORKER_FILE"
+    else
+        echo "❌ Worker file not found: $WORKER_FILE"
+        exit 1
+    fi
+else
+    echo "💡 Usage: ./.czarina/.worker-init <worker-id>"
+fi
+""")
+            worker_init.chmod(0o755)
+            print(f"✅ Created: .czarina/.worker-init")
+
+            # Create README
+            readme = czarina_dir / "README.md"
+            project_name = analysis["analysis"]["project_name"]
+            with open(readme, "w") as f:
+                f.write(f"""# Czarina Orchestration - {project_name}
+
+## Quick Start
+
+### For Workers
+
+**Claude Code / Desktop:**
+```bash
+./.czarina/.worker-init <worker-id>
+```
+
+**Claude Code Web (auto-discovery):**
+Just say: "You are <worker-id>"
+
+### For Orchestrators
+
+**Launch all workers:**
+```bash
+czarina launch
+```
+
+**Start daemon (auto-approval):**
+```bash
+czarina daemon start
+```
+
+**Check status:**
+```bash
+czarina status
+```
+
+## Configuration
+
+Edit `.czarina/config.json` to:
+- Add/remove workers
+- Configure agent types
+- Set daemon behavior
+- Update token budgets
+
+Edit `.czarina/workers/*.md` to define worker roles and tasks.
+
+## Workers
+
+{chr(10).join(f"- **{w['id']}**: {w['description']}" for w in config['workers'])}
+
+## Version Plan
+
+{chr(10).join(f"- **{v}**: {config['version_plan'][v]['description']} ({config['version_plan'][v]['token_budget']['projected']:,} tokens)" for v in config['version_plan'])}
+
+## Project
+
+**Repository:** {current_dir}
+**Orchestration:** .czarina/
+**Generated:** {datetime.now().strftime('%Y-%m-%d')}
+**From:** {plan_file}
+""")
+            print(f"✅ Created: .czarina/README.md")
+
+            # Update .gitignore
+            gitignore = current_dir / ".gitignore"
+            gitignore_content = ""
+            if gitignore.exists():
+                gitignore_content = gitignore.read_text()
+
+            if ".czarina/status/" not in gitignore_content:
+                with open(gitignore, "a") as f:
+                    if gitignore_content and not gitignore_content.endswith("\n"):
+                        f.write("\n")
+                    f.write("\n# Czarina orchestration\n")
+                    f.write(".czarina/status/\n")
+                print(f"✅ Updated: .gitignore")
+
+            print()
+            print("=" * 60)
+            print("✅ PROJECT INITIALIZED")
+            print("=" * 60)
+            print()
+            print(f"📁 Location: {current_dir}")
+            print(f"📋 Project: {project_name}")
+            print(f"👷 Workers: {len(config['workers'])}")
+            print(f"📦 Versions: {len(config['version_plan'])}")
+            print()
+            print("📝 Next steps:")
+            print("  1. Review .czarina/config.json")
+            print("  2. Review .czarina/workers/*.md")
+            print("  3. git add .czarina/")
+            print("  4. git commit -m 'Add Czarina orchestration'")
+            print("  5. czarina launch")
+            print("  6. czarina daemon start")
+            print()
+
+        else:
+            print()
+            print("💡 To initialize project with this analysis:")
+            print(f"   czarina analyze {plan_file} --init")
+            print()
+            print("Or save analysis for later:")
+            print(f"   czarina analyze {plan_file} --output analysis.json")
+            print()
+
+    except Exception as e:
+        print(f"❌ Analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
     print("=" * 60)
 
@@ -628,10 +802,13 @@ def show_usage():
     """Show usage information"""
     print(__doc__)
     print("\nExamples:")
-    print("  # Analyze implementation plan")
-    print("  czarina analyze implementation-plan.md")
+    print("  # Analyze implementation plan and auto-initialize")
+    print("  czarina analyze implementation-plan.md --init")
     print("")
-    print("  # Initialize in current project")
+    print("  # Analyze and save to file (no init)")
+    print("  czarina analyze implementation-plan.md --output analysis.json")
+    print("")
+    print("  # Manual initialization")
     print("  cd ~/my-project && czarina init")
     print("")
     print("  # Launch from project directory")
@@ -655,18 +832,18 @@ def main():
 
     if command == "analyze":
         if len(sys.argv) < 3:
-            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--interactive]")
+            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--init]")
             sys.exit(1)
         plan_file = sys.argv[2]
         output_file = None
-        interactive = False
+        auto_init = False
         # Parse optional flags
         for i in range(3, len(sys.argv)):
             if sys.argv[i] == "--output" and i + 1 < len(sys.argv):
                 output_file = sys.argv[i + 1]
-            elif sys.argv[i] == "--interactive":
-                interactive = True
-        cmd_analyze(plan_file, output_file, interactive)
+            elif sys.argv[i] == "--init":
+                auto_init = True
+        cmd_analyze(plan_file, output_file, auto_init)
     elif command == "init":
         project_name = sys.argv[2] if len(sys.argv) > 2 else None
         cmd_init(project_name)

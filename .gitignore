@@ -47,3 +47,6 @@ temp/
 
 # Czarina orchestration runtime state
 czarina-*/status/
+
+# User projects (should live in separate repos)
+projects/

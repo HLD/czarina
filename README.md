@@ -100,14 +100,14 @@ czarina daemon start
 
 ## 📊 Real-World Results
 
-### SARK v2.0 Project
+### SARK v2.0 Project (Real-World Case Study)
 - **Team:** 10 AI workers (6 engineers, 2 QA, 2 docs)
 - **Timeline:** 6-8 weeks (vs. 22-26 weeks sequential)
 - **Speedup:** 3-4x faster delivery
 - **Autonomy:** 90% with daemon
-- **Status:** ✅ Active development
+- **Status:** ✅ Successfully deployed
 
-**See [projects/sark-v2-orchestration/](projects/sark-v2-orchestration/) for details.**
+This demonstrates Czarina can handle large-scale projects with 10+ workers in parallel.
 
 ---
 
@@ -198,6 +198,7 @@ czarina-orchestrator/
 ├── czarina-core/              # Framework & CLI
 │   ├── daemon/                # Auto-approval system
 │   ├── patterns/              # Error recovery & best practices
+│   ├── templates/             # Analysis templates
 │   └── docs/                  # Framework documentation
 │
 ├── czarina-inbox/             # Community improvements
@@ -209,13 +210,10 @@ czarina-orchestrator/
 │   ├── profiles/              # JSON agent definitions
 │   └── guides/                # Agent-specific setup
 │
-├── docs/                      # Documentation
-│   ├── guides/                # User guides
-│   ├── analysis/              # Session reports
-│   └── archive/               # Legacy docs
-│
-└── projects/                  # Example projects
-    └── sark-v2-orchestration/ # 10-worker real-world project
+└── docs/                      # Documentation
+    ├── guides/                # User guides
+    ├── analysis/              # Session reports
+    └── archive/               # Legacy docs
 ```
 
 ---
