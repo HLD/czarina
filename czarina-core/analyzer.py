@@ -18,9 +18,14 @@ class ProjectAnalyzer:
         self.orchestrator_dir = Path(orchestrator_dir)
         self.template_file = self.orchestrator_dir / "czarina-core" / "templates" / "ANALYSIS_TEMPLATE.md"
 
-    def analyze(self, plan_content, plan_file_path):
+    def analyze(self, plan_content, plan_file_path, interactive=False):
         """
         Analyze implementation plan using Claude API
+
+        Args:
+            plan_content: The implementation plan text
+            plan_file_path: Path to the plan file
+            interactive: If True, use interactive mode (works with any AI agent)
 
         Returns: dict with analysis results following the schema in ANALYSIS_TEMPLATE.md
         """
@@ -31,8 +36,11 @@ class ProjectAnalyzer:
         # Construct the prompt for Claude
         prompt = self._build_analysis_prompt(template, plan_content)
 
-        # Call Claude API
-        analysis_result = self._call_claude_api(prompt)
+        # Call Claude API (interactive or automated)
+        if interactive:
+            analysis_result = self._call_via_interactive(prompt)
+        else:
+            analysis_result = self._call_claude_api(prompt)
 
         # Parse and validate the JSON response
         try:
@@ -69,14 +77,31 @@ class ProjectAnalyzer:
         """
         Call Claude API to analyze the plan
 
-        This uses the Anthropic Python SDK if available, otherwise falls back
-        to using the Claude CLI if installed.
+        Priority:
+        1. Interactive mode - save prompt and wait for agent response
+        2. Try Anthropic SDK if available
+        3. Use subprocess with Python + anthropic
+        4. Try Claude CLI as last resort
         """
-        # Try using Anthropic SDK
+        # Try interactive mode first (best for Claude Code / any agent)
+        try:
+            return self._call_via_interactive(prompt)
+        except KeyboardInterrupt:
+            raise  # Allow user to cancel
+        except Exception as e:
+            print(f"⚠️  Interactive mode skipped, trying automated methods...")
+
+        # Try using Anthropic SDK directly
         try:
             return self._call_via_sdk(prompt)
         except (ImportError, Exception) as e:
-            print(f"⚠️  SDK not available ({e}), trying Claude CLI...")
+            print(f"⚠️  SDK not available ({e}), trying subprocess...")
+
+        # Try subprocess with Python
+        try:
+            return self._call_via_inline_python(prompt)
+        except Exception as e:
+            print(f"⚠️  Subprocess failed ({e}), trying Claude CLI...")
 
         # Fall back to Claude CLI
         try:
@@ -84,9 +109,196 @@ class ProjectAnalyzer:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to call Claude API: {e}\n"
-                f"Install: pip install anthropic\n"
-                f"Or set ANTHROPIC_API_KEY environment variable"
+                f"Options:\n"
+                f"1. Run interactively (recommended for Claude Code)\n"
+                f"2. Install SDK: pip install anthropic + set ANTHROPIC_API_KEY\n"
+                f"3. Use claude CLI tool"
             )
+
+    def _call_via_interactive(self, prompt):
+        """
+        Interactive mode - save prompt to file and ask agent to process it
+        This works with ANY coding assistant (Claude Code, Cursor, etc.)
+        """
+        import tempfile
+
+        # Check if we're in an interactive terminal
+        if not sys.stdin.isatty():
+            raise RuntimeError("Not in interactive mode")
+
+        print()
+        print("=" * 60)
+        print("📝 INTERACTIVE ANALYSIS MODE")
+        print("=" * 60)
+        print()
+        print("The analysis prompt has been prepared.")
+        print()
+        print("OPTIONS:")
+        print()
+        print("1. Process with current AI agent (Claude Code, Cursor, etc.)")
+        print("   - The agent will read the prompt below")
+        print("   - Analyze it and return structured JSON")
+        print("   - Paste the JSON response when ready")
+        print()
+        print("2. Skip interactive mode (try automated methods)")
+        print()
+
+        choice = input("Choose [1=interactive, 2=skip]: ").strip()
+
+        if choice != "1":
+            raise RuntimeError("User chose to skip interactive mode")
+
+        # Save prompt to temp file for reference
+        prompt_file = Path(tempfile.gettempdir()) / "czarina-analysis-prompt.txt"
+        with open(prompt_file, 'w') as f:
+            f.write(prompt)
+
+        print()
+        print(f"✅ Prompt saved to: {prompt_file}")
+        print()
+        print("=" * 60)
+        print("ANALYSIS PROMPT")
+        print("=" * 60)
+        print()
+        print(prompt[:1000])  # Show first 1000 chars
+        print()
+        print(f"... ({len(prompt)} total characters)")
+        print()
+        print("=" * 60)
+        print()
+        print("Please:")
+        print("1. Copy the prompt from the file above OR use your agent to read it")
+        print("2. Process it with your AI assistant")
+        print("3. Paste the complete JSON response below")
+        print("4. Press Ctrl+D when done (or type 'END' on a new line)")
+        print()
+        print("Paste JSON response:")
+        print()
+
+        # Read multi-line response
+        lines = []
+        try:
+            while True:
+                line = input()
+                if line.strip() == "END":
+                    break
+                lines.append(line)
+        except EOFError:
+            pass
+
+        response = '\n'.join(lines).strip()
+
+        if not response:
+            raise RuntimeError("No response provided")
+
+        # Clean up markdown code fences if present
+        if response.startswith("```"):
+            lines = response.split('\n')
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            response = '\n'.join(lines).strip()
+
+        return response
+
+    def _call_via_inline_python(self, prompt):
+        """
+        Call Claude by executing Python code that imports anthropic
+        This works when run from Claude Code or any environment with anthropic installed
+        """
+        import tempfile
+        import subprocess
+
+        print("🤖 Analyzing with Claude API (via subprocess)...")
+
+        # Create a Python script that makes the API call
+        script = f"""
+import os
+import sys
+
+try:
+    import anthropic
+except ImportError:
+    print("anthropic not installed", file=sys.stderr)
+    sys.exit(1)
+
+# Check for API key in multiple places
+api_key = (
+    os.environ.get("ANTHROPIC_API_KEY") or
+    os.environ.get("CLAUDE_API_KEY") or
+    os.environ.get("API_KEY")
+)
+
+if not api_key:
+    # Try reading from config files
+    import pathlib
+    config_paths = [
+        pathlib.Path.home() / ".anthropic" / "api_key",
+        pathlib.Path.home() / ".config" / "anthropic" / "api_key",
+    ]
+    for path in config_paths:
+        if path.exists():
+            api_key = path.read_text().strip()
+            break
+
+if not api_key:
+    print("No API key found", file=sys.stderr)
+    sys.exit(1)
+
+client = anthropic.Anthropic(api_key=api_key)
+
+prompt = '''{{PROMPT}}'''
+
+try:
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=16000,
+        temperature=0,
+        messages=[{{"role": "user", "content": prompt}}]
+    )
+
+    response_text = message.content[0].text
+
+    # Clean up markdown code fences if present
+    if response_text.strip().startswith("```"):
+        lines = response_text.strip().split('\\n')
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        response_text = '\\n'.join(lines)
+
+    print(response_text.strip())
+
+except Exception as e:
+    print(f"API call failed: {{e}}", file=sys.stderr)
+    sys.exit(1)
+"""
+        # Replace the prompt placeholder (escape it properly)
+        script = script.replace("{{PROMPT}}", prompt.replace("'", "\\'").replace('"', '\\"'))
+
+        # Write script to temp file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(script)
+            script_path = f.name
+
+        try:
+            # Run the script with Python
+            result = subprocess.run(
+                ["python", script_path],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(f"Script failed: {result.stderr}")
+
+            return result.stdout.strip()
+
+        finally:
+            os.unlink(script_path)
 
     def _call_via_sdk(self, prompt):
         """Call Claude via Anthropic Python SDK"""
