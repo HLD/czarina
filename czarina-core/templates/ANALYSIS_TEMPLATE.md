@@ -164,23 +164,23 @@ Recommend workers based on:
   - Token budget: 100K-300K per architecture phase
 
 - **Backend Developer**: APIs, services, business logic
-  - Best agent: aider (95-98% autonomy)
+  - Best agent: claude-code (comprehensive understanding)
   - Token budget: 150K-400K per version
 
 - **Frontend Developer**: UI components, state management
-  - Best agent: cursor (VS Code integration)
+  - Best agent: claude-code (excellent at UI/UX)
   - Token budget: 120K-350K per version
 
 - **Full-Stack Developer**: Both backend and frontend
-  - Best agent: aider or cursor
+  - Best agent: claude-code (handles full stack well)
   - Token budget: 200K-500K per version
 
 - **QA Engineer**: Testing, quality assurance
-  - Best agent: aider (good at test automation)
+  - Best agent: claude-code (good at test automation)
   - Token budget: 100K-250K per version
 
 - **DevOps Engineer**: CI/CD, infrastructure
-  - Best agent: aider (shell scripting)
+  - Best agent: claude-code (shell scripting & config)
   - Token budget: 80K-200K per version
 
 - **Documentation Writer**: Technical writing
@@ -199,7 +199,7 @@ Recommend workers based on:
 {
   "id": "<descriptive-id>",
   "role": "<role type>",
-  "agent": "<claude-code|aider|cursor|windsurf>",
+  "agent": "claude-code",
   "description": "<clear role description>",
   "versions_assigned": ["v0.X.Y", "v0.X.Y-phaseN"],
   "total_token_budget": <sum across versions>,
@@ -332,7 +332,7 @@ Generate complete JSON following this schema:
     {
       "id": "string",
       "role": "string",
-      "agent": "claude-code|aider|cursor|windsurf|copilot|continue",
+      "agent": "claude-code",
       "description": "string",
       "versions_assigned": ["vX.Y.Z"],
       "total_token_budget": number,
