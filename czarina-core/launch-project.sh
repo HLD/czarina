@@ -145,7 +145,7 @@ for i in $(seq 0 $((WORKER_COUNT - 1))); do
         "claude-code")
             tmux send-keys -t "${SESSION_NAME}:${WORKER_ID}" "echo '🔧 To start working with Claude Code:'" C-m
             tmux send-keys -t "${SESSION_NAME}:${WORKER_ID}" "echo '   1. Open Claude Code in this directory'" C-m
-            tmux send-keys -t "${SESSION_NAME}:${WORKER_ID}" "echo '   2. Load worker prompt with: cat .czarina/workers/${WORKER_ID}.md'" C-m
+            tmux send-keys -t "${SESSION_NAME}:${WORKER_ID}" "echo '   2. Ask Claude to read .czarina/workers/${WORKER_ID}.md'" C-m
             tmux send-keys -t "${SESSION_NAME}:${WORKER_ID}" "echo ''" C-m
             ;;
         "cursor")
