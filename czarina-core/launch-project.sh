@@ -44,14 +44,19 @@ PROJECT_NAME=$(jq -r '.project.name' "$CONFIG_FILE")
 PROJECT_SLUG=$(jq -r '.project.slug' "$CONFIG_FILE")
 PROJECT_ROOT=$(jq -r '.project.repository' "$CONFIG_FILE")
 
+# Sanitize session name for tmux (tmux converts dots to underscores)
+# Replace dots with underscores to match tmux behavior
+SESSION_NAME="czarina-${PROJECT_SLUG}"
+SESSION_NAME="${SESSION_NAME//./_}"
+
 echo -e "${BLUE}🚀 Launching Czarina Project${NC}"
 echo "   Project: $PROJECT_NAME"
 echo "   Slug: $PROJECT_SLUG"
+echo "   Session: $SESSION_NAME"
 echo "   Root: $PROJECT_ROOT"
 echo ""
 
 # Check if tmux session already exists
-SESSION_NAME="czarina-${PROJECT_SLUG}"
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     echo -e "${YELLOW}⚠️  Session already exists: ${SESSION_NAME}${NC}"
     echo ""
