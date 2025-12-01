@@ -30,12 +30,13 @@ from pathlib import Path
 from datetime import datetime
 
 # Add czarina-core to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "czarina-core"))
+# Resolve symlinks to find the actual repository location
+sys.path.insert(0, str(Path(__file__).resolve().parent / "czarina-core"))
 
 
 def get_orchestrator_dir():
     """Get the orchestrator root directory"""
-    return Path(__file__).parent.resolve()
+    return Path(__file__).resolve().parent
 
 
 def find_czarina_dir(start_path=None):
