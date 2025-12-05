@@ -12,6 +12,7 @@ Usage:
     czarina list                                 - List all Czarina projects
     czarina launch [project]                     - Launch project workers
     czarina status [project]                     - Show project status
+    czarina dashboard [project]                  - Live monitoring dashboard
     czarina daemon start [project]               - Start autonomous daemon
     czarina daemon stop [project]                - Stop daemon
     czarina daemon logs [project]                - Show daemon logs
@@ -478,6 +479,24 @@ def cmd_status(project_name=None):
     else:
         print(f"   Session: ❌ Not running")
         print(f"   Start: czarina launch")
+
+
+def cmd_dashboard(project_name=None):
+    """Launch live monitoring dashboard"""
+    czarina_dir, project_root = get_project_context(project_name)
+    orchestrator_dir = get_orchestrator_dir()
+    dashboard_script = orchestrator_dir / "czarina-core" / "dashboard-v2.py"
+
+    if not dashboard_script.exists():
+        print(f"❌ Dashboard script not found: {dashboard_script}")
+        sys.exit(1)
+
+    print("🎭 Launching dashboard...")
+    print("   Press Ctrl+C to exit")
+    print()
+
+    os.chdir(project_root)
+    subprocess.run([sys.executable, str(dashboard_script)])
 
 
 def cmd_daemon_start(project_name=None):
@@ -967,6 +986,9 @@ def main():
     elif command == "status":
         project_name = sys.argv[2] if len(sys.argv) > 2 else None
         cmd_status(project_name)
+    elif command == "dashboard":
+        project_name = sys.argv[2] if len(sys.argv) > 2 else None
+        cmd_dashboard(project_name)
     elif command == "daemon":
         if len(sys.argv) < 3:
             print("❌ Usage: czarina daemon <start|stop|logs|status> [project]")
