@@ -75,6 +75,7 @@ class CzarinaDashboard:
     def _get_worker_status(self, worker_id: str, session: str) -> Tuple[str, str]:
         """Get current status of a worker from tmux"""
         # Try to find the window for this worker
+        # Look for both old naming (worker_id) and new naming (workerN)
         result = subprocess.run(
             ["tmux", "list-windows", "-t", session, "-F", "#{window_name}"],
             capture_output=True,
@@ -85,12 +86,27 @@ class CzarinaDashboard:
             return "❓ Unknown", ""
 
         windows = result.stdout.strip().split('\n')
-        if worker_id not in windows:
+
+        # Try to find worker window by ID or by number
+        target_window = None
+        if worker_id in windows:
+            target_window = worker_id
+        else:
+            # Try finding by worker number (worker1, worker2, etc)
+            for i, worker in enumerate(self.workers):
+                if worker["id"] == worker_id:
+                    worker_num = i + 1
+                    candidate = f"worker{worker_num}"
+                    if candidate in windows:
+                        target_window = candidate
+                        break
+
+        if not target_window:
             return "❓ Not Found", ""
 
         # Capture the pane content
         result = subprocess.run(
-            ["tmux", "capture-pane", "-t", f"{session}:{worker_id}", "-p"],
+            ["tmux", "capture-pane", "-t", f"{session}:{target_window}", "-p"],
             capture_output=True,
             text=True
         )

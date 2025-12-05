@@ -442,11 +442,17 @@ def cmd_launch(project_name=None):
                     print("⚠️  Branch initialization had issues, continuing anyway...")
             print()
 
-    # Use orchestrator launch script
-    launch_script = orchestrator_dir / "czarina-core" / "launch-project.sh"
+    # Use orchestrator launch script (v2 with improved UX)
+    launch_script_v2 = orchestrator_dir / "czarina-core" / "launch-project-v2.sh"
+    launch_script_v1 = orchestrator_dir / "czarina-core" / "launch-project.sh"
 
-    if not launch_script.exists():
-        print(f"❌ Launch script not found: {launch_script}")
+    # Prefer v2 if it exists
+    if launch_script_v2.exists():
+        launch_script = launch_script_v2
+    elif launch_script_v1.exists():
+        launch_script = launch_script_v1
+    else:
+        print(f"❌ Launch script not found")
         sys.exit(1)
 
     # Launch via embedded orchestration launcher

@@ -62,8 +62,9 @@ echo -e "${YELLOW}1. Stopping tmux sessions...${NC}"
 SESSIONS_FOUND=0
 
 # Find all czarina sessions for this project
+# Look for both old naming (czarina-memory*) and new naming (czarina-{slug}*)
 for session in $(tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""); do
-    if [[ "$session" =~ czarina.*memory ]] || [[ "$session" =~ $PROJECT_SLUG ]]; then
+    if [[ "$session" =~ czarina.*memory ]] || [[ "$session" =~ czarina-${PROJECT_SLUG} ]] || [[ "$session" =~ ${PROJECT_SLUG} ]]; then
         echo "   Stopping session: $session"
         tmux kill-session -t "$session" 2>/dev/null || true
         ((SESSIONS_FOUND++))

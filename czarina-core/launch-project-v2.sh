@@ -1,0 +1,320 @@
+#!/bin/bash
+# Czarina Project Launcher v2
+# Launches all workers with improved UX:
+# - Auto-starts daemon and dashboard
+# - Simple worker numbering (1, 2, 3...)
+# - Czar in window 0
+# - Management session for overflow + services
+
+set -euo pipefail
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Get czarina directory (passed as first argument)
+CZARINA_DIR="${1:-}"
+
+if [ -z "$CZARINA_DIR" ] || [ ! -d "$CZARINA_DIR" ]; then
+    echo -e "${RED}❌ Usage: $0 <czarina-dir>${NC}"
+    echo "   Example: $0 /path/to/project/.czarina"
+    exit 1
+fi
+
+# Load configuration
+CONFIG_FILE="${CZARINA_DIR}/config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}❌ Config file not found: ${CONFIG_FILE}${NC}"
+    exit 1
+fi
+
+# Check for required tools
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ jq is required but not installed${NC}"
+    echo "   Install: sudo apt install jq"
+    exit 1
+fi
+
+if ! command -v tmux &> /dev/null; then
+    echo -e "${RED}❌ tmux is required but not installed${NC}"
+    echo "   Install: sudo apt install tmux"
+    exit 1
+fi
+
+PROJECT_NAME=$(jq -r '.project.name' "$CONFIG_FILE")
+PROJECT_SLUG=$(jq -r '.project.slug' "$CONFIG_FILE")
+PROJECT_ROOT=$(jq -r '.project.repository' "$CONFIG_FILE")
+
+# Get orchestrator directory (where czarina executable lives)
+ORCHESTRATOR_DIR="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+
+# Create worktrees directory for workers
+WORKTREES_DIR="${PROJECT_ROOT}/.czarina/worktrees"
+mkdir -p "$WORKTREES_DIR"
+
+# Make sure we're on a safe branch (main) before creating worktrees
+echo -e "${BLUE}🔄 Preparing repository for multi-worker launch...${NC}"
+cd "$PROJECT_ROOT"
+
+# Clean up any stale worktree references
+echo "   Cleaning up stale worktrees..."
+git worktree prune 2>/dev/null || true
+
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
+    echo "   Switching from ${CURRENT_BRANCH} to main for worktree setup..."
+    git checkout main 2>/dev/null || git checkout master 2>/dev/null || {
+        echo -e "${YELLOW}   ⚠️  Could not switch to main/master branch${NC}"
+        echo "   Continuing anyway, but some worktrees may fail to create"
+    }
+fi
+echo ""
+
+# Create session name
+SESSION_NAME="czarina-${PROJECT_SLUG}"
+
+echo -e "${BLUE}🚀 Launching Czarina Project${NC}"
+echo "   Project: $PROJECT_NAME"
+echo "   Session: $SESSION_NAME"
+echo "   Root: $PROJECT_ROOT"
+echo ""
+
+# Get worker count
+WORKER_COUNT=$(jq -r '.workers | length' "$CONFIG_FILE")
+
+# Session planning:
+# - Main session: Window 0 = Czar, Windows 1-9 = Workers 1-9
+# - Mgmt session: Workers 10+, Daemon, Dashboard
+MAX_WORKERS_IN_MAIN=9
+
+echo -e "${BLUE}👷 ${WORKER_COUNT} workers${NC}"
+if [ $WORKER_COUNT -gt $MAX_WORKERS_IN_MAIN ]; then
+    MGMT_SESSION="${SESSION_NAME}-mgmt"
+    echo -e "${BLUE}   Main session: Czar + Workers 1-9${NC}"
+    echo -e "${BLUE}   Mgmt session: Workers 10-${WORKER_COUNT}, Daemon, Dashboard${NC}"
+else
+    MGMT_SESSION="${SESSION_NAME}-mgmt"  # Always create mgmt for daemon/dashboard
+    echo -e "${BLUE}   Main session: Czar + Workers 1-${WORKER_COUNT}${NC}"
+    echo -e "${BLUE}   Mgmt session: Daemon, Dashboard${NC}"
+fi
+echo ""
+
+# Check if sessions already exist
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Session already exists: ${SESSION_NAME}${NC}"
+    echo "   Kill it first: czarina closeout"
+    exit 1
+fi
+
+if tmux has-session -t "$MGMT_SESSION" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Session already exists: ${MGMT_SESSION}${NC}"
+    echo "   Kill it first: czarina closeout"
+    exit 1
+fi
+
+# Function to create worker window
+create_worker_window() {
+    local session=$1
+    local worker_num=$2
+    local worker_idx=$3
+    local window_name="worker${worker_num}"
+
+    local worker_id=$(jq -r ".workers[$worker_idx].id" "$CONFIG_FILE")
+    local worker_agent=$(jq -r ".workers[$worker_idx].agent" "$CONFIG_FILE")
+    local worker_desc=$(jq -r ".workers[$worker_idx].description" "$CONFIG_FILE")
+    local worker_branch=$(jq -r ".workers[$worker_idx].branch" "$CONFIG_FILE")
+    local worker_file="${CZARINA_DIR}/workers/${worker_id}.md"
+
+    if [ ! -f "$worker_file" ]; then
+        echo -e "${RED}      ⚠️  Worker file not found: ${worker_file}${NC}"
+        return
+    fi
+
+    echo "   • Worker $worker_num: $worker_id"
+
+    # Create or reuse git worktree
+    local worker_dir="${WORKTREES_DIR}/${worker_id}"
+    if [ -n "$worker_branch" ] && [ "$worker_branch" != "null" ]; then
+        if [ ! -d "$worker_dir" ]; then
+            cd "$PROJECT_ROOT"
+            git worktree add "$worker_dir" "$worker_branch" 2>/dev/null || {
+                git worktree add -b "$worker_branch" "$worker_dir" 2>/dev/null || {
+                    echo "      ⚠️  Failed to create worktree, using main directory"
+                    worker_dir="$PROJECT_ROOT"
+                }
+            }
+        fi
+    else
+        worker_dir="$PROJECT_ROOT"
+    fi
+
+    # Create window
+    tmux new-window -t "$session" -n "$window_name"
+    tmux send-keys -t "${session}:${window_name}" "cd ${worker_dir}" C-m
+    sleep 0.1
+
+    # Display worker info
+    tmux send-keys -t "${session}:${window_name}" "clear && cat <<'WORKER_EOF'
+═══════════════════════════════════════════════════════════════
+🤖 Worker ${worker_num}
+📋 ID: ${worker_id}
+📝 Role: ${worker_desc}
+🔧 Agent: ${worker_agent}
+🌿 Branch: ${worker_branch}
+📁 Worktree: ${worker_dir}
+═══════════════════════════════════════════════════════════════
+
+WORKER_EOF
+cat ${worker_file}
+echo ''
+echo '═══════════════════════════════════════════════════════════════'
+" C-m
+    sleep 0.1
+
+    # Agent-specific setup
+    case "$worker_agent" in
+        "aider")
+            if command -v aider &> /dev/null; then
+                tmux send-keys -t "${session}:${window_name}" "aider --model claude-3-5-sonnet-20241022 --message 'Read .czarina/workers/${worker_id}.md and begin implementation'" C-m
+            else
+                tmux send-keys -t "${session}:${window_name}" "echo '⚠️  Aider not found. Install: pip install aider-chat'" C-m
+            fi
+            ;;
+        *)
+            tmux send-keys -t "${session}:${window_name}" "echo '✅ Ready for ${worker_agent}'" C-m
+            ;;
+    esac
+}
+
+# Create main session
+echo -e "${GREEN}📦 Creating main session: ${SESSION_NAME}${NC}"
+tmux new-session -d -s "$SESSION_NAME" -n "czar"
+sleep 0.3
+
+# Set up Czar window (window 0)
+echo "   • Window 0: Czar (Orchestrator)"
+tmux send-keys -t "${SESSION_NAME}:czar" "cd ${PROJECT_ROOT}" C-m
+tmux send-keys -t "${SESSION_NAME}:czar" "clear" C-m
+
+# Check if CZAR.md exists, otherwise show orchestrator info
+CZAR_FILE="${CZARINA_DIR}/workers/CZAR.md"
+if [ -f "$CZAR_FILE" ]; then
+    tmux send-keys -t "${SESSION_NAME}:czar" "cat ${CZAR_FILE}" C-m
+else
+    tmux send-keys -t "${SESSION_NAME}:czar" "cat <<'CZAR_EOF'
+═══════════════════════════════════════════════════════════════
+🎭 Czar - Orchestration Coordinator
+═══════════════════════════════════════════════════════════════
+
+Project: ${PROJECT_NAME}
+Workers: ${WORKER_COUNT}
+Session: ${SESSION_NAME}
+
+Your Role:
+- Monitor all workers (windows 1-${WORKER_COUNT})
+- Manage daemon and dashboard (in mgmt session)
+- Coordinate PRs and merges
+- Track progress and blockers
+
+Quick Commands:
+- Switch windows: Ctrl+b <number>
+- List windows: Ctrl+b w
+- Switch sessions: Ctrl+b s
+- Detach: Ctrl+b d
+
+Workers are in windows 1-9 (and mgmt session if >9)
+Daemon and Dashboard are in the mgmt session
+
+✅ All systems ready!
+CZAR_EOF
+" C-m
+fi
+
+# Create workers 1-9 in main session
+WORKERS_IN_MAIN=$((WORKER_COUNT < MAX_WORKERS_IN_MAIN ? WORKER_COUNT : MAX_WORKERS_IN_MAIN))
+for i in $(seq 1 $WORKERS_IN_MAIN); do
+    create_worker_window "$SESSION_NAME" $i $(($i - 1))
+done
+
+# Create management session
+echo ""
+echo -e "${GREEN}📦 Creating management session: ${MGMT_SESSION}${NC}"
+tmux new-session -d -s "$MGMT_SESSION" -n "info"
+sleep 0.3
+
+# Info window in mgmt session
+tmux send-keys -t "${MGMT_SESSION}:info" "cd ${PROJECT_ROOT}" C-m
+tmux send-keys -t "${MGMT_SESSION}:info" "cat <<'INFO_EOF'
+═══════════════════════════════════════════════════════════════
+📊 Czarina Management Session
+═══════════════════════════════════════════════════════════════
+
+Project: ${PROJECT_NAME}
+Main Session: ${SESSION_NAME}
+
+This session contains:
+INFO_EOF
+" C-m
+
+# Create overflow workers (10+) in mgmt session
+if [ $WORKER_COUNT -gt $MAX_WORKERS_IN_MAIN ]; then
+    tmux send-keys -t "${MGMT_SESSION}:info" "echo '- Workers 10-${WORKER_COUNT}'" C-m
+    for i in $(seq $(($MAX_WORKERS_IN_MAIN + 1)) $WORKER_COUNT); do
+        create_worker_window "$MGMT_SESSION" $i $(($i - 1))
+    done
+fi
+
+# Create daemon window
+echo "   • Daemon (auto-starting)"
+tmux send-keys -t "${MGMT_SESSION}:info" "echo '- Daemon (auto-monitoring)'" C-m
+tmux new-window -t "$MGMT_SESSION" -n "daemon"
+tmux send-keys -t "${MGMT_SESSION}:daemon" "cd ${PROJECT_ROOT}" C-m
+sleep 0.1
+tmux send-keys -t "${MGMT_SESSION}:daemon" "${ORCHESTRATOR_DIR}/czarina-core/daemon/czar-daemon.sh ${CZARINA_DIR}" C-m
+
+# Create dashboard window
+echo "   • Dashboard (auto-starting)"
+tmux send-keys -t "${MGMT_SESSION}:info" "echo '- Dashboard (live monitoring)'" C-m
+tmux send-keys -t "${MGMT_SESSION}:info" "echo ''
+echo 'Switch to main session: Ctrl+b s, select ${SESSION_NAME}'
+echo 'Detach: Ctrl+b d'
+echo ''
+echo '✅ Management session ready!'
+" C-m
+
+tmux new-window -t "$MGMT_SESSION" -n "dashboard"
+tmux send-keys -t "${MGMT_SESSION}:dashboard" "cd ${PROJECT_ROOT}" C-m
+sleep 0.1
+tmux send-keys -t "${MGMT_SESSION}:dashboard" "python3 ${ORCHESTRATOR_DIR}/czarina-core/dashboard-v2.py" C-m
+
+echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✅ Czarina orchestration launched!${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${CYAN}📺 Attach to sessions:${NC}"
+echo "   ${SESSION_NAME}      - Czar + Workers 1-${WORKERS_IN_MAIN}"
+echo "   ${MGMT_SESSION}  - Management (Workers 10+, Daemon, Dashboard)"
+echo ""
+echo -e "${CYAN}🔧 Quick start:${NC}"
+echo "   tmux attach -t ${SESSION_NAME}   # Main session"
+echo "   Ctrl+b w                         # List all windows"
+echo "   Ctrl+b s                         # Switch sessions"
+echo "   Ctrl+b <number>                  # Switch to window"
+echo ""
+echo -e "${CYAN}📊 What's running:${NC}"
+echo "   • Czar: Window 0 of main session"
+echo "   • Workers 1-${WORKERS_IN_MAIN}: Windows 1-${WORKERS_IN_MAIN} of main session"
+if [ $WORKER_COUNT -gt $MAX_WORKERS_IN_MAIN ]; then
+    echo "   • Workers 10-${WORKER_COUNT}: Mgmt session"
+fi
+echo "   • Daemon: Auto-monitoring (mgmt session)"
+echo "   • Dashboard: Live updating (mgmt session)"
+echo ""
+echo -e "${CYAN}🎯 To close out:${NC}"
+echo "   czarina closeout"
+echo ""
