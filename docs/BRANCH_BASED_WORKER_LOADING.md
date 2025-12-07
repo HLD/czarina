@@ -1,30 +1,39 @@
-# Branch-Based Worker Loading
+# Worker Isolation with Git Worktrees
 
 ## Overview
 
-Czarina uses **git branches** to automatically load the correct worker prompt for each agent. This approach works across **all AI coding assistants** (Claude Code, Cursor, Aider, Copilot, etc.) and requires minimal setup.
+Czarina uses **git worktrees** to give each worker an isolated workspace on their own branch. This approach provides true parallelism - multiple agents can work simultaneously without conflicts. It works across **all AI coding assistants** (Claude Code, Cursor, Aider, Copilot, etc.) and requires minimal setup.
 
 ## How It Works
 
 ```mermaid
 graph LR
-    A[Agent Starts] --> B{Which Branch?}
-    B -->|Worker Branch| C[Load Worker Prompt]
-    B -->|Main Branch| D[Load Czar Rules]
-    C --> E[Agent Works on Task]
-    D --> F[Czar Manages PRs]
+    A[czarina launch] --> B[Create Worktrees]
+    B --> C[Main Repo: Czar]
+    B --> D[Worktree 1: Worker 1]
+    B --> E[Worktree 2: Worker 2]
+    B --> F[Worktree N: Worker N]
+    C --> G[Manages PRs]
+    D --> H[Works in Parallel]
+    E --> H
+    F --> H
 ```
 
 ### The Flow
 
-1. **Project Setup**: Run `czarina init-branches` to create all worker branches
-2. **Worker Starts**: Agent checks out their assigned branch (e.g., `feat/v0.1.0-backend-attention-service`)
-3. **Auto-Detection**: SessionStart hook detects the branch and loads the matching worker prompt
-4. **Agent Works**: Agent receives their specific instructions and gets to work
-5. **PR Creation**: When done, worker creates PR from their branch to main
-6. **Czar Review**: Czar (on main branch) reviews and merges PRs
+1. **Project Setup**: Run `czarina init` to create `.czarina/` orchestration directory
+2. **Launch Workers**: Run `czarina launch` - automatically creates git worktrees for each worker
+3. **Parallel Work**: Each worker has their own directory on their own branch
+4. **Czar Coordination**: Czar (in main repo) monitors progress, manages PRs
+5. **No Conflicts**: Workers never interfere with each other - separate workspaces
+6. **Clean Merges**: Workers create PRs from their branches to main
 
 ## Benefits
+
+### ✅ True Parallelism
+- **Multiple agents work simultaneously** - no branch switching conflicts
+- Each worker has completely isolated workspace
+- No waiting for others to finish
 
 ### ✅ Universal Compatibility
 - Works with **any AI coding assistant** (not just Claude Code)
@@ -32,54 +41,65 @@ graph LR
 - Same workflow for all tools
 
 ### ✅ Automatic Role Assignment
-- No manual "You are worker X" prompts needed
-- Branch = Identity
+- Workers initialize with `.czarina/.worker-init <worker-id>`
+- Workspace location = Identity
 - Can't accidentally work on wrong task
 
 ### ✅ Clean Git History
 - Each worker's commits isolated to their branch
-- Easy to review changes
+- Easy to review changes per worker
 - Simple to revert if needed
 
-### ✅ Prevents Conflicts
-- Workers can't accidentally load each other's prompts
-- Czar rules only load on main branch
-- Clear separation of concerns
+### ✅ Zero Conflicts
+- Workers physically separated in different directories
+- Impossible to interfere with each other
+- Czar and workers never collide
 
 ## Setup
 
-### 1. Initialize Branches
-
-After running `czarina embed` to create orchestration:
+### 1. Initialize Czarina in Your Project
 
 ```bash
-# From czarina directory
-./czarina-core/init-embedded-branches.sh /path/to/project
-
-# Example
-./czarina-core/init-embedded-branches.sh ../thesymposium
+cd /path/to/your/project
+czarina init
 ```
 
-This will:
-- Read `.czarina/config.json`
-- Create a branch for each worker
-- Push branches to remote (if exists)
+This creates:
+- `.czarina/` directory with config and worker prompts
+- Worker branches in git
+- Gitignore entries for runtime files
 
-### 2. Configure SessionStart Hook
+### 2. Configure Czar SessionStart Hook (Optional)
 
-The `embed` command should have already created `.czarina/load-worker-by-branch.sh`.
+**This hook is ONLY for the Czar (main repository).**
+**Workers DON'T need hooks** - they use `.worker-init` instead.
 
-If not, copy it:
+Create `.claude/load-rules.sh` in your **main repository**:
 
 ```bash
-cp czarina-core/templates/embedded-orchestration/load-worker-by-branch.sh \
-   /path/to/project/.czarina/
-chmod +x /path/to/project/.czarina/load-worker-by-branch.sh
+#!/bin/bash
+CLAUDE_DIR=".claude"
+RULES_DIR=".kilocode/rules"
+
+# Load Czar role
+if [ -f "$CLAUDE_DIR/czar-rules.md" ]; then
+    cat "$CLAUDE_DIR/czar-rules.md"
+fi
+
+# Load all development rules (shared with workers via worktrees)
+if [ -d "$RULES_DIR" ]; then
+    for rule_file in "$RULES_DIR"/*.md; do
+        [ -f "$rule_file" ] && cat "$rule_file"
+    done
+fi
 ```
 
-### 3. Update `.claude/settings.local.json` (Claude Code)
+Make it executable:
+```bash
+chmod +x .claude/load-rules.sh
+```
 
-Replace the old hook:
+Configure `.claude/settings.local.json`:
 
 ```json
 {
@@ -90,7 +110,7 @@ Replace the old hook:
         "hooks": [
           {
             "type": "command",
-            "command": "./.czarina/load-worker-by-branch.sh"
+            "command": "./.claude/load-rules.sh"
           }
         ]
       }
@@ -99,62 +119,67 @@ Replace the old hook:
 }
 ```
 
-### 4. Other Agents
-
-For agents without hook support, workers manually run:
+### 3. Launch Workers
 
 ```bash
-# Show my worker prompt
-./.czarina/load-worker-by-branch.sh
-
-# Or use the worker-init script
-./.czarina/.worker-init backend-attention-service
+czarina launch
 ```
+
+This automatically:
+- Creates git worktrees in `.czarina/worktrees/`
+- Launches tmux sessions with all workers
+- Auto-starts daemon and dashboard
+- No manual configuration needed!
 
 ## Worker Workflow
 
-### Starting Work
+### For Orchestrator (Czar)
 
-1. **Clone repository**:
+The orchestrator uses `czarina launch` which automatically creates worktrees and launches all workers in tmux. Each worker runs in their own worktree directory.
+
+### For Individual Worker (Manual Access)
+
+If you need to work directly in a worker's workspace:
+
+1. **Navigate to worker's worktree**:
    ```bash
-   git clone <repo-url>
-   cd project
+   cd .czarina/worktrees/backend-attention-service
    ```
 
-2. **Checkout your branch**:
+2. **Load worker prompt**:
    ```bash
-   git checkout feat/v0.1.0-backend-attention-service
+   ../../.worker-init backend-attention-service
    ```
 
-3. **Start your AI agent**:
-   - **Claude Code**: Automatically loads your prompt via SessionStart hook
-   - **Cursor**: Run `./.czarina/load-worker-by-branch.sh` and read the output
-   - **Aider**: Same as Cursor
-   - **Other**: Same as Cursor
+   Or just read the prompt file:
+   ```bash
+   cat ../../workers/backend-attention-service.md
+   ```
 
-4. **Work on your task**: Follow the instructions in your worker prompt
+3. **Work on your task**: Follow the instructions in your worker prompt
 
-5. **Commit regularly**:
+4. **Commit regularly**:
    ```bash
    git add .
    git commit -m "Implement attention shaping service"
    git push
    ```
 
-6. **Create PR when done**:
+5. **Create PR when done**:
    ```bash
    gh pr create --title "feat: Attention Shaping Service" \
-                --body "Implements v0.4.7-phase1 requirements"
+                --body "Implements requirements"
    ```
 
-### Example Session (Claude Code)
+### Example: Worker in Worktree
 
 ```bash
-$ git checkout feat/v0.1.0-backend-attention-service
-Switched to branch 'feat/v0.1.0-backend-attention-service'
+$ cd .czarina/worktrees/backend-attention-service
 
-$ claude
-# Claude Code starts and runs SessionStart hook
+$ git branch --show-current
+feat/v0.1.0-backend-attention-service
+
+$ ../../.worker-init backend-attention-service
 
 ╔════════════════════════════════════════════════════════════╗
 ║        Czarina Multi-Agent Orchestration Active           ║
@@ -162,6 +187,7 @@ $ claude
 
 🎯 Worker Identity: backend-attention-service
 🌿 Branch: feat/v0.1.0-backend-attention-service
+📁 Worktree: .czarina/worktrees/backend-attention-service
 📄 Prompt: ./.czarina/workers/backend-attention-service.md
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -172,27 +198,28 @@ $ claude
 You are responsible for building the core AttentionShapingService...
 
 [Full worker prompt loads]
-
-# Claude is now ready to work as backend-attention-service
 ```
 
 ## Czar Workflow
 
-The Czar stays on the `main` branch and gets different rules:
+The Czar operates from the main repository (not a worktree):
 
 ```bash
-$ git checkout main
-Switched to branch 'main'
+$ cd /path/to/project  # Main repository
+
+$ git branch --show-current
+main
 
 $ claude
-# Claude Code starts and runs SessionStart hook
+# Claude Code starts and runs SessionStart hook (if configured)
 
 ╔════════════════════════════════════════════════════════════╗
-║              Czar Rules Loaded (Non-Worker Branch)        ║
+║              Czar Rules Loaded                            ║
 ╚════════════════════════════════════════════════════════════╝
 
 🌿 Branch: main
-📄 Loading: .claude/czar-rules.md
+📁 Location: Main repository (not worktree)
+📄 Loading: .claude/czar-rules.md + .kilocode/rules/*.md
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -203,94 +230,139 @@ You are **Claude Czar** - managing pull requests and infrastructure...
 [Czar rules load]
 ```
 
-## File Structure
+The Czar:
+- Monitors worker progress via `czarina dashboard`
+- Reviews and merges PRs from worker branches
+- Coordinates overall project progress
+- Manages infrastructure and shared resources
 
+## Directory Structure
+
+### Main Repository (Czar's Workspace)
 ```
 project/
-├── .claude/
-│   ├── settings.local.json     # SessionStart hook config
-│   └── czar-rules.md            # Rules for Czar (main branch)
-├── .czarina/
-│   ├── config.json              # Worker definitions
-│   ├── workers/                 # Worker-specific prompts
+├── .claude/                      # Czar-only hooks and rules
+│   ├── settings.local.json       # SessionStart hook config (Czar only!)
+│   ├── load-rules.sh             # Loads Czar role + dev rules
+│   └── czar-rules.md             # Czar role definition
+├── .kilocode/                    # Shared development rules
+│   └── rules/                    # All workers get these via worktrees
+│       ├── git-workflow.md
+│       ├── code-standards.md
+│       └── ...
+├── .czarina/                     # Orchestration directory
+│   ├── config.json               # Worker definitions
+│   ├── workers/                  # Worker-specific prompts
 │   │   ├── backend-attention-service.md
 │   │   ├── sage-loop-integrator.md
 │   │   └── ...
-│   ├── load-worker-by-branch.sh # Branch detection script
-│   └── .worker-init             # Manual worker loader
+│   ├── .worker-init              # Worker initialization script
+│   └── worktrees/                # Worker workspaces (auto-created)
+│       ├── backend-attention-service/  # Worker 1's worktree
+│       ├── sage-loop-integrator/       # Worker 2's worktree
+│       └── ...
 └── .git/
-    └── ...
+    └── worktrees/                # Git's worktree metadata
 ```
+
+### Worker Worktree (Isolated Workspace)
+```
+.czarina/worktrees/backend-attention-service/
+├── src/                          # Worker's code on their branch
+├── .kilocode/                    # SHARED from main repo (git worktree magic!)
+│   └── rules/                    # Same rules as Czar sees
+├── .git                          # Points to main repo's git
+└── [NO .claude/ directory!]      # Workers don't need hooks
+```
+
+**Key Points:**
+- **Main repo**: Has `.claude/` with SessionStart hook (Czar only)
+- **Worker worktrees**: Share `.kilocode/rules/` automatically, NO hooks needed
+- **Workers initialize**: Via `.czarina/.worker-init <worker-id>` not hooks
 
 ## Troubleshooting
 
-### Worker prompt not loading
+### Worktrees not created
 
-**Check branch name**:
+**Check if worktrees exist**:
 ```bash
-git branch --show-current
-# Should match a branch in config.json
+ls -la .czarina/worktrees/
+# Should show directories for each worker
 ```
 
-**Check script permissions**:
+**If missing, manually create**:
 ```bash
-ls -la .czarina/load-worker-by-branch.sh
-# Should be executable (-rwxr-xr-x)
-chmod +x .czarina/load-worker-by-branch.sh
+czarina launch
+# Automatically creates all worktrees
 ```
 
-**Run script manually**:
+**Check git worktree list**:
 ```bash
-./.czarina/load-worker-by-branch.sh
-# Should show your worker prompt
+git worktree list
+# Shows all worktrees and their branches
 ```
 
-**Check config.json**:
+### Worker can't find prompt
+
+**Navigate to worktree first**:
 ```bash
-cat .czarina/config.json | jq '.workers[] | {id, branch}'
-# Verify your branch is listed
+cd .czarina/worktrees/backend-attention-service
 ```
 
-### SessionStart hook not firing (Claude Code)
-
-**Check settings file**:
+**Use relative path to .worker-init**:
 ```bash
-cat .claude/settings.local.json | jq '.hooks'
-# Should have SessionStart hook with load-worker-by-branch.sh
+../../.worker-init backend-attention-service
+```
+
+**Or directly cat the prompt**:
+```bash
+cat ../../workers/backend-attention-service.md
+```
+
+### SessionStart hook error in worker worktree
+
+**This is expected!** Workers don't need hooks.
+
+If you see `.claude/load-rules.sh: No such file`:
+- This is normal for worker worktrees
+- Workers use `.worker-init` instead, not hooks
+- Only the main repo (Czar) should have `.claude/` directory
+- Remove any `.claude/` from worker worktrees
+
+### Czar hook not loading
+
+**Check you're in main repo, not worktree**:
+```bash
+pwd
+# Should be /path/to/project, NOT /path/to/project/.czarina/worktrees/...
+```
+
+**Check hook file exists**:
+```bash
+ls -la .claude/load-rules.sh
+# Should be executable
+chmod +x .claude/load-rules.sh
 ```
 
 **Test hook manually**:
 ```bash
-./.czarina/load-worker-by-branch.sh
-```
-
-### Wrong prompt loading
-
-**Verify you're on correct branch**:
-```bash
-git branch --show-current
-# Must match your assigned branch from config.json
-```
-
-**Check for stale branches**:
-```bash
-git fetch --all
-git branch -vv
-# Ensure branch tracks correct remote
+./.claude/load-rules.sh
+# Should load Czar rules and development rules
 ```
 
 ## Advanced Usage
 
 ### Adding New Workers
 
-1. **Update config.json**:
+1. **Update `.czarina/config.json`**:
    ```json
    {
      "workers": [
        ...,
        {
          "id": "new-worker",
-         "branch": "feat/v0.1.0-new-worker",
+         "agent": "aider",
+         "branch": "feat/new-worker",
          "description": "Does something cool"
        }
      ]
@@ -299,93 +371,131 @@ git branch -vv
 
 2. **Create worker prompt**:
    ```bash
-   touch .czarina/workers/new-worker.md
-   # Add worker instructions
+   cat > .czarina/workers/new-worker.md <<EOF
+   # New Worker
+
+   ## Role
+   Your role description...
+
+   ## Responsibilities
+   - Task 1
+   - Task 2
+   EOF
    ```
 
-3. **Initialize branch**:
+3. **Launch (creates worktree automatically)**:
    ```bash
-   ./czarina-core/init-embedded-branches.sh .
+   czarina launch
+   # Detects new worker and creates worktree
    ```
 
-### Custom Branch Patterns
+### Manually Creating Worktrees
 
-The `load-worker-by-branch.sh` script matches branches to workers using `config.json`.
-
-To use different branch naming:
-
-1. Edit your `config.json` to use different branch names
-2. Re-run `init-embedded-branches.sh`
-3. The script will find workers by matching branch names
-
-### Non-Git Projects
-
-If you're not using git, workers can load prompts manually:
+If you need to create a worktree outside of `czarina launch`:
 
 ```bash
-# List workers
-ls .czarina/workers/
+# Create branch if it doesn't exist
+git checkout -b feat/new-worker
 
-# Load specific worker
-cat .czarina/workers/backend-attention-service.md
+# Go back to main
+git checkout main
+
+# Create worktree
+git worktree add .czarina/worktrees/new-worker feat/new-worker
 ```
+
+### Cleaning Up Worktrees
+
+```bash
+# Remove a specific worktree
+git worktree remove .czarina/worktrees/backend-attention-service
+
+# Prune stale references
+git worktree prune
+
+# Or use czarina closeout (removes all worktrees)
+czarina closeout
+```
+
+### Sharing Rules Across Workers
+
+Place shared development rules in `.kilocode/rules/`:
+
+```
+.kilocode/
+└── rules/
+    ├── git-workflow.md
+    ├── code-standards.md
+    └── testing-requirements.md
+```
+
+All workers automatically see these via git worktree sharing - no duplication needed!
 
 ## Comparison to Other Approaches
 
-### ❌ Manual Loading
-**Old way**: "You are backend-attention-service"
+### ❌ Branch Switching (Old Czarina Approach)
+**Problem**: Multiple agents trying to `git checkout` different branches in same directory
+- Race condition: all end up on same branch
+- Can't work in parallel
+- Last checkout wins
+
+**Worktree Solution**: Each worker has isolated directory
+- No race conditions
+- True parallelism
+- Each worker completely independent
+
+### ❌ Manual Loading Every Time
+**Tedious**: "You are backend-attention-service"
 - Requires manual prompt each time
 - Easy to forget or mistype
-- Doesn't work well with hooks
+- Workers can accidentally load wrong role
 
-**New way**: Branch-based auto-loading
-- Automatic on branch checkout
-- Can't load wrong prompt
-- Works with hooks
+**Worktree Approach**: Directory location = Identity
+- Automatic role detection
+- Can't accidentally be wrong worker
+- One-time `.worker-init` call
 
-### ❌ Environment Variables
-**Doesn't work**: `WORKER_ID=backend-attention-service`
-- Agents don't have access to env vars
-- Hard to set per-session
-- Doesn't integrate with git
+### ❌ Separate Repository Clones
+**Wasteful**: Clone repo 11 times for 11 workers
+- 11x disk space usage
+- 11x git history storage
+- Hard to sync changes between workers
 
-**Branch-based**: Uses git state
-- Already part of workflow
-- Visible in all tools
-- Integrates naturally
-
-### ❌ Separate Directories
-**Doesn't work**: One directory per worker
-- Multiplies repo size
-- Hard to share code
-- Merge conflicts nightmare
-
-**Branch-based**: Single repo, multiple branches
-- Standard git workflow
-- Easy code sharing
-- Clean merges
+**Git Worktrees**: Efficient sharing
+- Single `.git` directory
+- Shared object storage
+- Minimal overhead per worktree
 
 ## Best Practices
 
 ### ✅ DO
 
-- **Initialize branches** before starting workers
-- **Keep workers on their branches** during work
-- **Create descriptive branch names** in config
-- **Test the loader script** before launching workers
-- **Use PR workflow** for merging to main
+- **Use `czarina launch`** to create all worktrees automatically
+- **Use `czarina closeout`** to clean up when done
+- **Keep workers in their worktrees** during work
+- **Put SessionStart hook ONLY in main repo** (for Czar)
+- **Share rules via `.kilocode/rules/`** not duplication
+- **Create PRs from worker branches** for review
 
 ### ❌ DON'T
 
-- **Don't work on main** as a worker
-- **Don't push to main** directly (use PRs)
-- **Don't share branches** between workers
-- **Don't forget to push** your branch regularly
-- **Don't delete worker branches** until PRs are merged
+- **Don't manually create worktrees** unless necessary (use `czarina launch`)
+- **Don't put `.claude/` in worker worktrees** (they don't need hooks)
+- **Don't push to main directly** (use PRs from worker branches)
+- **Don't delete worktrees manually** (use `czarina closeout`)
+- **Don't share branches** between workers (1 worker = 1 branch)
+
+## Architecture Benefits Summary
+
+✅ **True Parallelism**: Workers run simultaneously, no conflicts
+✅ **Clean Separation**: Czar and workers physically isolated
+✅ **Efficient Storage**: Worktrees share git objects, minimal overhead
+✅ **Automatic Sharing**: `.kilocode/rules/` shared via worktree magic
+✅ **Simple Management**: `czarina launch` and `czarina closeout` handle everything
 
 ## See Also
 
-- [Embedded Orchestration Guide](../czarina-core/templates/embedded-orchestration/README.md)
+- [Automatic Branch Initialization](./AUTOMATIC_BRANCH_INITIALIZATION.md)
 - [Init Branches Script](../czarina-core/init-embedded-branches.sh)
-- [Worker Loader Script](../czarina-core/templates/embedded-orchestration/load-worker-by-branch.sh)
-- [Agent Compatibility](../AGENT_COMPATIBILITY.md)
+- [Launch Script v2](../czarina-core/launch-project-v2.sh)
+- [Closeout Script](../czarina-core/closeout-project.sh)
