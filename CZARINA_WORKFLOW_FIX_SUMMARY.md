@@ -310,12 +310,14 @@ docs/troubleshooting/WORKTREE_DEBUGGING.md        (324 lines)
 CZARINA_WORKFLOW_FIX_SUMMARY.md                   (this file)
 ```
 
-### Commits (5 total)
+### Commits (7 total)
 1. `3b263df` - Fix interactive mode for AI agents
 2. `e8ab606` - Add documentation for AI agent interactive mode workflow
 3. `2ad9234` - Add summary of interactive mode workflow fix
 4. `651c954` - Improve worktree creation debugging and error handling
 5. `8cabff0` - Add comprehensive worktree debugging guide
+6. `a62393d` - Update summary to include both workflow fixes
+7. `8a09aca` - Remove agent-specific auto-launching, simplify to text instructions
 
 ---
 
@@ -337,18 +339,27 @@ CZARINA_WORKFLOW_FIX_SUMMARY.md                   (this file)
 
 **Result:** Clear visibility into worktree creation success/failure
 
+### Problem 3 Fix (Agent Auto-Launching)
+**Who benefits:**
+- ✅ All users (no assumptions about installed tools)
+- ✅ Claude Code users (hooks work better)
+- ✅ Simpler, more flexible workflow
+
+**Result:** Workers just see instructions and path, agents discover via hooks
+
 ---
 
 ## Recommendation
 
-**Merge both fixes immediately.**
+**Merge all fixes immediately.**
 
 These are **critical UX improvements** that:
 1. Unblock AI agents from using Czarina (interactive mode)
 2. Make multi-worker parallelism debuggable (worktrees)
-3. Add comprehensive documentation for both issues
-4. Have no breaking changes
-5. Are backwards compatible
+3. Simplify agent launching (no tool assumptions)
+4. Add comprehensive documentation for all issues
+5. Have no breaking changes
+6. Are backwards compatible
 
 ---
 
