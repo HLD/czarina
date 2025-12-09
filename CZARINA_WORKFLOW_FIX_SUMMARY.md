@@ -1,4 +1,4 @@
-# Czarina Interactive Mode - Workflow Fix Summary
+# Czarina Workflow Fixes - Complete Summary
 
 **Date:** December 9, 2025
 **Branch:** `fix/interactive-mode-for-agents`
@@ -6,9 +6,11 @@
 
 ---
 
-## Problem Identified
+## Problems Identified
 
-While testing Czarina with SARK v1.2.0 implementation, discovered critical UX issue:
+While testing Czarina with SARK v1.2.0 implementation, discovered **two critical UX issues**:
+
+### Problem 1: Interactive Mode Blocking
 
 ```bash
 $ czarina analyze docs/v1.2.0/IMPLEMENTATION_PLAN.md --interactive --init
@@ -19,11 +21,31 @@ EOFError: EOF when reading a line
 
 **Root cause:** `input()` call blocks in non-interactive contexts (AI agents, CI/CD, etc.)
 
+### Problem 2: Worktrees Not Being Created
+
+Workers all working in the same directory on the same branch, stepping on each other.
+
+**Expected:**
+```
+git worktree list
+/home/user/sark/.czarina/worktrees/gateway-http-sse  [feat/gateway-http-sse-transport]
+/home/user/sark/.czarina/worktrees/gateway-stdio     [feat/gateway-stdio-transport]
+... (5 total worktrees)
+```
+
+**Actual:**
+```
+git worktree list
+/home/user/sark  165a835 [feat/policy-validation]
+```
+
+**Root cause:** Worktree creation errors were silently suppressed with `2>/dev/null`
+
 ---
 
-## Solution Implemented
+## Solutions Implemented
 
-### Two-Pass Workflow
+### Solution 1: Two-Pass Workflow for Interactive Mode
 
 **Pass 1:** Save prompt and exit
 ```bash
@@ -98,6 +120,57 @@ docs/workflows/AI_AGENT_INTERACTIVE_MODE.md       (NEW, 276 lines)
 **Commits:**
 1. `3b263df` - Fix interactive mode for AI agents
 2. `e8ab606` - Add documentation for AI agent interactive mode workflow
+
+### Solution 2: Worktree Error Visibility
+
+**File:** `czarina-core/launch-project.sh` and `launch-project-v2.sh`
+
+**Before:**
+```bash
+git worktree add "$worker_dir" "$worker_branch" 2>/dev/null || {
+    # Silent failure - no idea what went wrong!
+}
+```
+
+**After:**
+```bash
+if git worktree add "$worker_dir" "$worker_branch" 2>&1; then
+    echo "      ✅ Worktree created"
+elif git worktree add -b "$worker_branch" "$worker_dir" 2>&1; then
+    echo "      ✅ Worktree created (new branch)"
+else
+    echo "      ⚠️  Failed to create worktree"
+    echo "      Run 'git worktree list' to debug"
+    # Show actual error, provide hint
+fi
+```
+
+**New Output:**
+```
+   • Worker 1: gateway-http-sse
+      Creating worktree: .czarina/worktrees/gateway-http-sse on branch feat/gateway-http-sse-transport...
+      ✅ Worktree created
+
+   • Worker 2: gateway-stdio
+      ↻ Reusing existing worktree: .czarina/worktrees/gateway-stdio
+
+   • Worker 3: integration
+      Creating worktree: .czarina/worktrees/integration on branch feat/gateway-integration...
+      fatal: 'feat/gateway-integration' is already checked out at '/home/user/sark'
+      ⚠️  Failed to create worktree
+      Run 'git worktree list' to debug
+```
+
+**Files Changed:**
+```
+czarina-core/launch-project.sh                (+9, -8 lines)
+czarina-core/launch-project-v2.sh             (+14, -7 lines)
+docs/troubleshooting/WORKTREE_DEBUGGING.md    (NEW, 324 lines)
+```
+
+**Commits:**
+3. `651c954` - Improve worktree creation debugging and error handling
+4. `8cabff0` - Add comprehensive worktree debugging guide
 
 ---
 
@@ -221,13 +294,65 @@ Potential improvements (not blocking this PR):
 
 ---
 
+## Summary of All Changes
+
+### Files Modified
+```
+czarina-core/analyzer.py                          (+46, -41)
+czarina-core/launch-project.sh                    (+9, -8)
+czarina-core/launch-project-v2.sh                 (+14, -7)
+```
+
+### Files Added
+```
+docs/workflows/AI_AGENT_INTERACTIVE_MODE.md       (276 lines)
+docs/troubleshooting/WORKTREE_DEBUGGING.md        (324 lines)
+CZARINA_WORKFLOW_FIX_SUMMARY.md                   (this file)
+```
+
+### Commits (5 total)
+1. `3b263df` - Fix interactive mode for AI agents
+2. `e8ab606` - Add documentation for AI agent interactive mode workflow
+3. `2ad9234` - Add summary of interactive mode workflow fix
+4. `651c954` - Improve worktree creation debugging and error handling
+5. `8cabff0` - Add comprehensive worktree debugging guide
+
+---
+
+## Impact
+
+### Problem 1 Fix (Interactive Mode)
+**Who benefits:**
+- ✅ AI coding assistants (Claude Code, Cursor, etc.)
+- ✅ CI/CD pipelines
+- ✅ Non-interactive automation
+
+**Result:** AI agents can now use `czarina analyze --interactive --init` successfully
+
+### Problem 2 Fix (Worktree Debugging)
+**Who benefits:**
+- ✅ All users launching multi-worker projects
+- ✅ Developers debugging why workers collide
+- ✅ Future troubleshooting
+
+**Result:** Clear visibility into worktree creation success/failure
+
+---
+
 ## Recommendation
 
-**Merge this fix immediately.**
+**Merge both fixes immediately.**
 
-This is a critical UX improvement that unblocks AI agents from using Czarina effectively. The two-pass workflow is clean, well-documented, and tested.
+These are **critical UX improvements** that:
+1. Unblock AI agents from using Czarina (interactive mode)
+2. Make multi-worker parallelism debuggable (worktrees)
+3. Add comprehensive documentation for both issues
+4. Have no breaking changes
+5. Are backwards compatible
 
 ---
 
 **Reviewed by:** Claude Code (Sonnet 4.5)
 **Status:** ✅ Ready for Production
+**Branch:** `fix/interactive-mode-for-agents`
+**Target:** `main` → Tag as v0.4.0
