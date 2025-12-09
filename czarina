@@ -752,6 +752,149 @@ def cmd_analyze(plan_file, output_file=None, auto_init=False, interactive=False)
                     f.write(prompt_content)
                 print(f"✅ Created: .czarina/workers/{worker_id}.md")
 
+            # Create CZAR.md (orchestrator instructions)
+            czar_file = czarina_dir / "workers" / "CZAR.md"
+            worker_count = len(config["workers"])
+            worker_list = "\n".join([f"- **{w['id']}**: {w.get('description', 'Worker')}"
+                                     for w in config["workers"]])
+            with open(czar_file, 'w') as f:
+                f.write(f"""# Czar - Orchestration Coordinator
+
+## Your Role
+
+You are the **Czar** - the orchestration coordinator for this multi-agent project.
+
+**Project:** {config['project']['name']}
+**Workers:** {worker_count}
+**Your Window:** tmux window 0 (czar)
+
+## Responsibilities
+
+### 1. Monitor Worker Progress
+- Track completion of worker tasks
+- Identify blockers and dependencies
+- Coordinate handoffs between workers
+
+### 2. Manage Integration
+- Review PRs from workers as they complete
+- Coordinate merges when dependencies are met
+- Ensure integration tests pass
+
+### 3. Track Project Health
+- Monitor test coverage and quality
+- Watch for conflicts or duplicate work
+- Keep project documentation updated
+
+### 4. Coordinate Communication
+- Facilitate cross-worker discussions
+- Escalate issues that need user input
+- Document decisions and changes
+
+## Workers
+
+{worker_list}
+
+## Quick Commands
+
+### Tmux Navigation
+```bash
+# Switch to worker windows
+Ctrl+b 1    # Worker 1
+Ctrl+b 2    # Worker 2
+# ... etc
+
+# List all windows
+Ctrl+b w
+
+# Switch sessions (for >9 workers)
+Ctrl+b s
+
+# Detach from session
+Ctrl+b d
+```
+
+### Git Operations
+```bash
+# Check all worker branches
+git branch -a
+
+# Check worktrees
+git worktree list
+
+# View worker's changes
+git log <worker-branch> --oneline
+
+# Check for conflicts
+git diff main...<worker-branch>
+```
+
+### Czarina Commands
+```bash
+# Check project status
+czarina status
+
+# View dashboard (if available)
+czarina dashboard
+
+# Check daemon status
+czarina daemon status
+
+# View daemon logs
+czarina daemon logs
+```
+
+## Workflow
+
+1. **Launch Phase**
+   - All workers start in their isolated worktrees
+   - Each has their instructions in `.czarina/workers/<worker-id>.md`
+   - Monitor tmux windows to see progress
+
+2. **Development Phase**
+   - Workers implement their assigned features
+   - You track progress and coordinate
+   - Help resolve blockers or conflicts
+
+3. **Integration Phase**
+   - Workers create PRs as they complete
+   - You review and coordinate merges
+   - Watch for dependency ordering
+
+4. **Completion Phase**
+   - Verify all features integrated
+   - Run full test suite
+   - Update project documentation
+   - Prepare release notes
+
+## Tips
+
+- **Be proactive**: Check in on workers periodically
+- **Document decisions**: Keep notes on what's been decided
+- **Watch dependencies**: Some workers may need others to finish first
+- **Communicate clearly**: Make sure workers know about changes affecting them
+- **Stay organized**: Use this window to track TODOs and status
+
+## Status Tracking
+
+You can track worker status here:
+
+```markdown
+## Worker Status
+
+- [ ] {config['workers'][0]['id']} - {config['workers'][0].get('description', 'In progress')}
+{''.join([f"- [ ] {w['id']} - {w.get('description', 'In progress')}" + chr(10) for w in config['workers'][1:]])}
+```
+
+Update this as workers complete their tasks!
+
+---
+
+**Remember:** You're the coordinator, not a micromanager. Trust your workers to do their jobs, but be ready to help when needed.
+
+✅ Ready to orchestrate!
+""")
+            print(f"✅ Created: .czarina/workers/CZAR.md")
+
             # Save complete analysis
             analysis_file = czarina_dir / "analysis.json"
             analyzer.save_analysis(analysis, analysis_file)
