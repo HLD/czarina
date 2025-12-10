@@ -168,14 +168,28 @@ else
 fi
 echo ""
 
-# 5. Clear worker status (keep structure)
-echo -e "${YELLOW}5. Clearing worker status...${NC}"
+# 5. Clear phase artifacts (already archived)
+echo -e "${YELLOW}5. Clearing phase artifacts...${NC}"
+
+# Clear config (already archived)
+if [ -f "${CZARINA_DIR}/config.json" ]; then
+    rm -f "${CZARINA_DIR}/config.json"
+    echo "   ✅ Config cleared"
+fi
+
+# Clear workers (already archived)
+if [ -d "${CZARINA_DIR}/workers" ]; then
+    rm -rf "${CZARINA_DIR}/workers"/*
+    echo "   ✅ Worker prompts cleared"
+fi
+
+# Clear status
 if [ -d "${CZARINA_DIR}/status" ]; then
     rm -rf "${CZARINA_DIR}/status"/*
-    echo -e "   ${GREEN}✅ Status cleared${NC}"
-else
-    echo "   No status to clear"
+    echo "   ✅ Status cleared"
 fi
+
+echo -e "   ${GREEN}✅ Phase cleared, ready for next phase${NC}"
 echo ""
 
 # 6. Summary
@@ -183,16 +197,14 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${GREEN}✅ Phase closed successfully!${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "📦 Project structure preserved:"
-echo "   ✅ .czarina/config.json (edit for next phase)"
-echo "   ✅ .czarina/workers/ (edit or regenerate for next phase)"
-echo "   ✅ Phase archived: phases/phase-${PHASE_TIMESTAMP}"
+echo "📦 Phase archived to: .czarina/phases/phase-${PHASE_TIMESTAMP}"
+echo "   ✅ Complete history preserved"
 echo ""
 echo "📋 Next steps:"
-echo "   1. Update .czarina/config.json for next phase (or re-analyze)"
-echo "   2. Update worker prompts if needed"
-echo "   3. czarina launch (starts next phase)"
+echo "   1. Initialize next phase:"
+echo "      czarina init --from-config <next-phase-config.json>"
+echo "      OR: czarina analyze docs/next-plan.md --interactive --init"
 echo ""
-echo "💡 To start a completely new phase from a new plan:"
-echo "   czarina analyze docs/new-plan.md --interactive --init"
+echo "   2. Launch new workers:"
+echo "      czarina launch"
 echo ""
