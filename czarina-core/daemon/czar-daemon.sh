@@ -214,15 +214,35 @@ check_for_issues() {
     return $issues_found
 }
 
+# Track notifications to avoid spam
+declare -A LAST_NOTIFICATION
+NOTIFICATION_COOLDOWN=300  # 5 minutes between same notifications
+
 # Function to notify Czar window (window 0)
 notify_czar() {
     local worker_window=$1
     local issue_type=$2
     local message=$3
 
-    # Send notification to Czar window (window 0 or "czar" window)
-    tmux send-keys -t $SESSION:0 "" 2>/dev/null  # Just ensure window exists
-    tmux send-keys -t $SESSION:0 "echo '[$(date '+%H:%M:%S')] 🔔 Worker $worker_window - $issue_type: $message'" C-m 2>/dev/null || true
+    # Create notification key
+    local notif_key="${worker_window}_${issue_type}"
+    local now=$(date +%s)
+    local last_notif=${LAST_NOTIFICATION[$notif_key]:-0}
+
+    # Check cooldown - don't spam same notification
+    if [ $((now - last_notif)) -lt $NOTIFICATION_COOLDOWN ]; then
+        return 0
+    fi
+
+    LAST_NOTIFICATION[$notif_key]=$now
+
+    # Write to Czar log file instead of sending tmux commands
+    # This prevents tmux lockup from too many send-keys
+    CZAR_LOG="${PROJECT_DIR}/status/czar-notifications.log"
+    echo "[$(date '+%H:%M:%S')] 🔔 Worker $worker_window - $issue_type: $message" | tee -a "$CZAR_LOG"
+
+    # Also log to daemon log
+    echo "[$(date '+%H:%M:%S')] → Notified Czar: Worker $worker_window - $issue_type" | tee -a "$LOG_FILE"
 }
 
 # Main daemon loop
@@ -268,14 +288,18 @@ while true; do
             fi
         done
 
-        # Send celebratory report to Czar
+        # Write celebratory report to Czar log (avoid tmux spam)
         if [ $active_workers -gt 0 ]; then
-            tmux send-keys -t $SESSION:0 "echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'" C-m 2>/dev/null || true
-            tmux send-keys -t $SESSION:0 "echo '[$(date '+%H:%M:%S')] 📊 STATUS REPORT - Your workers are CRUSHING IT, my liege!'" C-m 2>/dev/null || true
-            tmux send-keys -t $SESSION:0 "echo -e '${commits_report}'" C-m 2>/dev/null || true
-            tmux send-keys -t $SESSION:0 "echo '   Total active: ${active_workers}/${WORKER_COUNT} workers'" C-m 2>/dev/null || true
-            tmux send-keys -t $SESSION:0 "echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'" C-m 2>/dev/null || true
-            echo "[$(date '+%H:%M:%S')] ✅ Status report sent to Czar" | tee -a "$LOG_FILE"
+            CZAR_LOG="${PROJECT_DIR}/status/czar-notifications.log"
+            {
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "[$(date '+%H:%M:%S')] 📊 STATUS REPORT - Your workers are CRUSHING IT, my liege!"
+                echo -e "${commits_report}"
+                echo "   Total active: ${active_workers}/${WORKER_COUNT} workers"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+            } | tee -a "$CZAR_LOG"
+            echo "[$(date '+%H:%M:%S')] ✅ Status report written to czar-notifications.log" | tee -a "$LOG_FILE"
         else
             echo "[$(date '+%H:%M:%S')] No recent activity to report" | tee -a "$LOG_FILE"
         fi
