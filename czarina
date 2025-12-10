@@ -3,6 +3,8 @@
 Czarina - Multi-Agent Orchestration CLI
 Simple interface for managing multi-agent orchestration projects
 
+Version: 0.4.0
+
 Usage:
     czarina analyze <plan-file>                  - Analyze plan and suggest orchestration
     czarina analyze <plan-file> --interactive    - Interactive mode (works with any AI agent!)
@@ -25,7 +27,10 @@ Usage:
     czarina patterns version                     - Show pattern version
     czarina patterns pending                     - List patterns ready to contribute
     czarina patterns contribute                  - Show contribution guide
+    czarina version                              - Show version information
 """
+
+CZARINA_VERSION = "0.4.0"
 
 import sys
 import subprocess
@@ -1521,6 +1526,12 @@ def main():
             print(f"❌ Unknown patterns subcommand: {subcommand}")
             print("   Valid: update, version, pending, contribute")
             sys.exit(1)
+    elif command in ["version", "-v", "--version"]:
+        print(f"Czarina v{CZARINA_VERSION}")
+        print("Multi-Agent Orchestration CLI")
+        print()
+        print("Repository: https://github.com/apathy-ca/czarina")
+        print("Documentation: https://github.com/apathy-ca/czarina/tree/main/docs")
     elif command in ["-h", "--help", "help"]:
         show_usage()
     else:
