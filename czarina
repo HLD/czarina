@@ -9,6 +9,7 @@ Usage:
     czarina analyze <plan-file> --init           - Analyze and initialize project
     czarina analyze <plan-file> --output file    - Save analysis to file
     czarina init [project-name]                  - Initialize orchestration in current dir
+    czarina init --from-config <config.json>     - Initialize from pre-made config file
     czarina list                                 - List all Czarina projects
     czarina launch [project]                     - Launch project workers
     czarina status [project]                     - Show project status
@@ -123,7 +124,239 @@ def get_project_context(project_name=None):
     sys.exit(1)
 
 
-def cmd_init(project_name=None):
+def _create_czarina_readme(czarina_dir, config):
+    """Helper to create README.md for .czarina directory"""
+    readme = czarina_dir / "README.md"
+    project_name = config["project"]["name"]
+    workers = config["workers"]
+    worker_list = "\n".join([f"- **{w['id']}**: {w.get('description', 'Worker')}"
+                             for w in workers])
+
+    with open(readme, "w") as f:
+        f.write(f"""# Czarina Orchestration - {project_name}
+
+## Quick Start
+
+### For Workers
+
+**Claude Code / Desktop:**
+```bash
+./.czarina/.worker-init <worker-id>
+```
+
+**Claude Code Web (auto-discovery):**
+Just say: "You are <worker-id>"
+
+### For Orchestrators
+
+**Launch all workers:**
+```bash
+czarina launch
+```
+
+**Start daemon (auto-approval):**
+```bash
+czarina daemon start
+```
+
+**Check status:**
+```bash
+czarina status
+```
+
+## Configuration
+
+Edit `.czarina/config.json` to:
+- Add/remove workers
+- Configure agent types
+- Set daemon behavior
+
+Edit `.czarina/workers/*.md` to define worker roles and tasks.
+
+## Workers
+
+{worker_list}
+
+## Project
+
+**Repository:** {config['project']['repository']}
+**Orchestration:** .czarina/
+
+Created: {datetime.now().strftime('%Y-%m-%d')}
+""")
+
+
+def cmd_init_from_config(config_file_path, current_dir, czarina_dir):
+    """Initialize from a pre-made configuration file"""
+    config_path = Path(config_file_path)
+
+    if not config_path.exists():
+        print(f"❌ Config file not found: {config_file_path}")
+        sys.exit(1)
+
+    print(f"📄 Loading configuration from: {config_file_path}")
+    print()
+
+    # Load the user's config
+    with open(config_path) as f:
+        user_config = json.load(f)
+
+    # Create .czarina/ structure
+    czarina_dir.mkdir()
+    (czarina_dir / "workers").mkdir()
+    (czarina_dir / "status").mkdir()
+
+    # Convert user format to czarina format
+    workers_dict = user_config.get("workers", {})
+    workers_list = []
+
+    for worker_id, worker_data in workers_dict.items():
+        workers_list.append({
+            "id": worker_id,
+            "agent": worker_data.get("agent", "aider"),
+            "branch": worker_data.get("branch", f"feat/{worker_id}"),
+            "description": worker_data.get("name", worker_data.get("role", f"Worker {worker_id}"))
+        })
+
+    # Build czarina config
+    czarina_config = {
+        "project": {
+            "name": user_config.get("project", current_dir.name),
+            "slug": user_config.get("project", current_dir.name).lower().replace(" ", "-"),
+            "repository": str(current_dir),
+            "orchestration_dir": ".czarina",
+            "version": user_config.get("version", "1.0.0"),
+            "phase": user_config.get("phase", "default"),
+            "description": user_config.get("description", "")
+        },
+        "workers": workers_list,
+        "daemon": user_config.get("daemon", {
+            "enabled": True,
+            "auto_approve": ["read", "write", "commit"]
+        })
+    }
+
+    # Save czarina config
+    config_file = czarina_dir / "config.json"
+    with open(config_file, 'w') as f:
+        json.dump(czarina_config, f, indent=2)
+    print(f"✅ Created: .czarina/config.json")
+
+    # Generate worker prompts from user config
+    for worker_id, worker_data in workers_dict.items():
+        worker_file = czarina_dir / "workers" / f"{worker_id}.md"
+
+        # Build worker prompt from user's data
+        tasks_section = ""
+        if "tasks" in worker_data:
+            tasks_section = "\n## Tasks\n\n" + "\n".join([f"- {task}" for task in worker_data["tasks"]])
+
+        files_section = ""
+        if "files" in worker_data:
+            files_section = "\n## Files\n\n" + "\n".join([f"- `{f}`" for f in worker_data["files"]])
+
+        criteria_section = ""
+        if "completion_criteria" in worker_data:
+            criteria_section = "\n## Completion Criteria\n\n" + "\n".join([f"- [ ] {c}" for c in worker_data["completion_criteria"]])
+
+        budget = worker_data.get("budget", {})
+        token_budget = budget.get("tokens_projected", budget.get("tokens_max", "N/A"))
+
+        with open(worker_file, 'w') as f:
+            f.write(f"""# {worker_data.get('name', worker_id)}
+
+## Role
+{worker_data.get('role', 'Worker for this project')}
+
+## Branch
+{worker_data.get('branch', f'feat/{worker_id}')}
+
+## Token Budget
+{token_budget:,} tokens (max: {budget.get('tokens_max', 'N/A')})
+{tasks_section}{files_section}{criteria_section}
+
+## Dependencies
+{', '.join(worker_data.get('dependencies', [])) or 'None'}
+
+## Git Workflow
+When your work is complete:
+1. Commit your changes
+2. Push to your branch
+3. Create a PR to main
+4. Update token metrics in status
+
+## Pattern Library
+Review before starting:
+- czarina-core/patterns/ERROR_RECOVERY_PATTERNS.md
+- czarina-core/patterns/CZARINA_PATTERNS.md
+""")
+        print(f"✅ Created: .czarina/workers/{worker_id}.md")
+
+    # Create CZAR.md
+    worker_list = "\n".join([f"- **{w['id']}**: {w.get('description', 'Worker')}"
+                             for w in workers_list])
+    czar_file = czarina_dir / "workers" / "CZAR.md"
+    with open(czar_file, 'w') as f:
+        f.write(f"""# Czar - Orchestration Coordinator
+
+## Your Role
+
+You are the **Czar** - the orchestration coordinator for this multi-agent project.
+
+**Project:** {czarina_config['project']['name']}
+**Version:** {czarina_config['project']['version']}
+**Phase:** {czarina_config['project']['phase']}
+**Workers:** {len(workers_list)}
+
+{czarina_config['project']['description']}
+
+## Workers
+
+{worker_list}
+
+## Quick Commands
+
+### Tmux Navigation
+- Switch windows: Ctrl+b <number>
+- List windows: Ctrl+b w
+- Detach: Ctrl+b d
+
+### Git Operations
+- Check worktrees: `git worktree list`
+- Check branches: `git branch -a`
+
+### Czarina Commands
+- Status: `czarina status`
+- Dashboard: `czarina dashboard`
+- Phase close: `czarina phase close`
+
+## Responsibilities
+
+1. Monitor worker progress
+2. Coordinate dependencies
+3. Review PRs and manage merges
+4. Track project health
+
+✅ Ready to orchestrate!
+""")
+    print(f"✅ Created: .czarina/workers/CZAR.md")
+
+    # Create README
+    _create_czarina_readme(czarina_dir, czarina_config)
+    print(f"✅ Created: .czarina/README.md")
+
+    print()
+    print("🎉 Czarina initialized successfully!")
+    print()
+    print(f"📁 Created in: {current_dir}")
+    print(f"📋 Project: {czarina_config['project']['name']} ({czarina_config['project']['slug']})")
+    print()
+    print("📝 Next steps:")
+    print("  1. Review and edit .czarina/workers/*.md files")
+    print("  2. czarina launch")
+
+
+def cmd_init(project_name=None, from_config=None):
     """Initialize Czarina orchestration in current directory"""
     current_dir = Path.cwd()
 
@@ -133,6 +366,10 @@ def cmd_init(project_name=None):
         print(f"❌ Czarina already initialized in {current_dir}")
         print(f"   .czarina/ directory exists")
         sys.exit(1)
+
+    # Handle --from-config (user provides pre-made config)
+    if from_config:
+        return cmd_init_from_config(from_config, current_dir, czarina_dir)
 
     # Detect project name from directory or use provided
     if not project_name:
@@ -1155,8 +1392,22 @@ def main():
                 interactive = True
         cmd_analyze(plan_file, output_file, auto_init, interactive)
     elif command == "init":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        cmd_init(project_name)
+        # Check for --from-config flag
+        from_config = None
+        project_name = None
+
+        for i, arg in enumerate(sys.argv[2:], start=2):
+            if arg == "--from-config":
+                if i + 1 < len(sys.argv):
+                    from_config = sys.argv[i + 1]
+                else:
+                    print("❌ --from-config requires a file path")
+                    sys.exit(1)
+                break
+            elif not arg.startswith("--"):
+                project_name = arg
+
+        cmd_init(project_name, from_config)
     elif command == "list":
         cmd_list()
     elif command == "launch":
