@@ -161,23 +161,45 @@ check_for_issues() {
             stuck_count=$((${STUCK_COUNT[$window]:-0} + 1))
             STUCK_COUNT[$window]=$stuck_count
 
-            # If stuck for 3+ iterations (6+ minutes), flag it
+            # If stuck for 3+ iterations (6+ minutes), investigate
             if [ $stuck_count -ge 3 ]; then
-                # Check if it looks idle (at prompt)
-                if echo "$output" | tail -3 | grep -qE "Ready to begin|✅|instructions"; then
-                    echo "[$(date '+%H:%M:%S')] 🔔 Window $window appears idle for ${stuck_count} iterations" | tee -a "$LOG_FILE"
-                    echo "   Last line: $(echo "$output" | tail -1)" | tee -a "$LOG_FILE"
+                # Check if there's a choice/question being asked
+                last_10_lines=$(echo "$output" | tail -10)
 
-                    # Try a gentle nudge
-                    echo "   Sending nudge (Enter)..." | tee -a "$LOG_FILE"
-                    tmux send-keys -t $SESSION:$window C-m 2>/dev/null
+                # Detect choice patterns (multiple options, numbered lists, Y/N, etc)
+                has_choice=false
+                if echo "$last_10_lines" | grep -qE "\[1\]|\[2\]|option 1|option 2"; then
+                    has_choice=true
+                elif echo "$last_10_lines" | grep -qE "\(y/n\)|\[Y/n\]|\(Y/N\)"; then
+                    has_choice=true
+                elif echo "$last_10_lines" | grep -qE "select|choose|which|would you like"; then
+                    has_choice=true
+                fi
 
-                    # Reset counter after nudge
-                    STUCK_COUNT[$window]=0
+                if [ "$has_choice" = true ]; then
+                    # There's a choice - DON'T auto-answer, escalate to Czar
+                    echo "[$(date '+%H:%M:%S')] 🔔 Window $window has CHOICE waiting" | tee -a "$LOG_FILE"
+                    choice_context=$(echo "$last_10_lines" | grep -E "\[1\]|\[2\]|option|select|choose|y/n" | head -3)
+                    echo "   Choices: $choice_context" | tee -a "$LOG_FILE"
+                    notify_czar "$window" "Choice Required" "$choice_context"
+                    ((issues_found++))
+                    STUCK_COUNT[$window]=0  # Reset after notification
+                elif echo "$output" | tail -3 | grep -qE "Ready to begin|✅ Ready|instructions above"; then
+                    # Still on initial "Ready to begin" screen - hasn't started yet
+                    # Don't nudge, just log
+                    if [ $stuck_count -ge 5 ]; then
+                        echo "[$(date '+%H:%M:%S')] 💤 Window $window idle on start screen for ${stuck_count} iterations" | tee -a "$LOG_FILE"
+                        notify_czar "$window" "Not Started" "Worker hasn't begun (idle 10+ min)"
+                        ((issues_found++))
+                        STUCK_COUNT[$window]=0
+                    fi
                 elif [ $stuck_count -ge 5 ]; then
-                    # Stuck for 10+ minutes with no obvious prompt - escalate
+                    # Stuck for 10+ minutes, no choice detected, not on start screen
+                    # Could be genuinely stuck - escalate to Czar, don't auto-nudge
                     echo "[$(date '+%H:%M:%S')] ⚠️  Window $window STUCK for ${stuck_count} iterations (10+ min)" | tee -a "$LOG_FILE"
-                    notify_czar "$window" "Stuck" "No activity for $((stuck_count * 2)) minutes"
+                    stuck_context=$(echo "$output" | tail -3)
+                    echo "   Context: $stuck_context" | tee -a "$LOG_FILE"
+                    notify_czar "$window" "Stuck" "No activity for $((stuck_count * 2)) minutes - Check window $window"
                     ((issues_found++))
                     STUCK_COUNT[$window]=0  # Reset to avoid spam
                 fi
