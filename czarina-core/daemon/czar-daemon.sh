@@ -124,6 +124,10 @@ auto_approve_all() {
     return $approved_count
 }
 
+# Track last activity time for each worker
+declare -A LAST_ACTIVITY
+declare -A STUCK_COUNT
+
 # Function to check for workers needing guidance
 check_for_issues() {
     local issues_found=0
@@ -131,22 +135,72 @@ check_for_issues() {
     for ((window=0; window<WORKER_COUNT; window++)); do
         output=$(tmux capture-pane -t $SESSION:$window -p 2>/dev/null || echo "")
 
+        # Get current pane content hash to detect changes
+        current_hash=$(echo "$output" | md5sum | cut -d' ' -f1)
+        last_hash="${LAST_ACTIVITY[$window]:-}"
+
         # Check for explicit questions to Czar
         if echo "$output" | tail -20 | grep -qiE "czar.*\?|question for czar|@czar"; then
             echo "[$(date '+%H:%M:%S')] ⚠️  Window $window has question for Czar" | tee -a "$LOG_FILE"
             echo "   Context: $(echo "$output" | grep -iE "czar.*\?|question|@czar" | tail -1)" | tee -a "$LOG_FILE"
+            notify_czar "$window" "Question" "$(echo "$output" | grep -iE "czar.*\?|question|@czar" | tail -1)"
             ((issues_found++))
         fi
 
         # Check for errors that look serious
-        if echo "$output" | tail -10 | grep -qiE "fatal|critical|cannot proceed|blocked"; then
+        if echo "$output" | tail -10 | grep -qiE "fatal|critical|cannot proceed|blocked|error:"; then
             echo "[$(date '+%H:%M:%S')] ❌ Window $window has blocking error" | tee -a "$LOG_FILE"
-            echo "   Error: $(echo "$output" | grep -iE "fatal|critical|cannot|blocked" | tail -1)" | tee -a "$LOG_FILE"
+            error_line=$(echo "$output" | grep -iE "fatal|critical|cannot|blocked|error:" | tail -1)
+            echo "   Error: $error_line" | tee -a "$LOG_FILE"
+            notify_czar "$window" "Error" "$error_line"
             ((issues_found++))
+        fi
+
+        # Check if worker is stuck (no activity for multiple iterations)
+        if [ "$current_hash" = "$last_hash" ]; then
+            stuck_count=$((${STUCK_COUNT[$window]:-0} + 1))
+            STUCK_COUNT[$window]=$stuck_count
+
+            # If stuck for 3+ iterations (6+ minutes), flag it
+            if [ $stuck_count -ge 3 ]; then
+                # Check if it looks idle (at prompt)
+                if echo "$output" | tail -3 | grep -qE "Ready to begin|✅|instructions"; then
+                    echo "[$(date '+%H:%M:%S')] 🔔 Window $window appears idle for ${stuck_count} iterations" | tee -a "$LOG_FILE"
+                    echo "   Last line: $(echo "$output" | tail -1)" | tee -a "$LOG_FILE"
+
+                    # Try a gentle nudge
+                    echo "   Sending nudge (Enter)..." | tee -a "$LOG_FILE"
+                    tmux send-keys -t $SESSION:$window C-m 2>/dev/null
+
+                    # Reset counter after nudge
+                    STUCK_COUNT[$window]=0
+                elif [ $stuck_count -ge 5 ]; then
+                    # Stuck for 10+ minutes with no obvious prompt - escalate
+                    echo "[$(date '+%H:%M:%S')] ⚠️  Window $window STUCK for ${stuck_count} iterations (10+ min)" | tee -a "$LOG_FILE"
+                    notify_czar "$window" "Stuck" "No activity for $((stuck_count * 2)) minutes"
+                    ((issues_found++))
+                    STUCK_COUNT[$window]=0  # Reset to avoid spam
+                fi
+            fi
+        else
+            # Activity detected, reset counter
+            LAST_ACTIVITY[$window]=$current_hash
+            STUCK_COUNT[$window]=0
         fi
     done
 
     return $issues_found
+}
+
+# Function to notify Czar window (window 0)
+notify_czar() {
+    local worker_window=$1
+    local issue_type=$2
+    local message=$3
+
+    # Send notification to Czar window (window 0 or "czar" window)
+    tmux send-keys -t $SESSION:0 "" 2>/dev/null  # Just ensure window exists
+    tmux send-keys -t $SESSION:0 "echo '[$(date '+%H:%M:%S')] 🔔 Worker $worker_window - $issue_type: $message'" C-m 2>/dev/null || true
 }
 
 # Main daemon loop
