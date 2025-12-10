@@ -246,12 +246,39 @@ while true; do
         auto_approve_all  # Second pass to catch cascading prompts
     fi
 
-    # 4. Log git activity every 10 iterations (~20 min)
-    if [ $((iteration % 10)) -eq 0 ]; then
-        echo "[$(date '+%H:%M:%S')] Git activity check..." | tee -a "$LOG_FILE"
+    # 4. Proactive status report to Czar every 5 iterations (~10 min)
+    if [ $((iteration % 5)) -eq 0 ]; then
+        echo "[$(date '+%H:%M:%S')] 📊 Generating status report for Czar..." | tee -a "$LOG_FILE"
         cd "$PROJECT_ROOT"
-        recent=$(git log --all --since="20 minutes ago" --oneline 2>/dev/null | wc -l)
-        echo "[$(date '+%H:%M:%S')] Commits in last 20 min: $recent" | tee -a "$LOG_FILE"
+
+        # Count recent commits per worker branch
+        active_workers=0
+        commits_report=""
+        for ((w=0; w<WORKER_COUNT; w++)); do
+            worker_id=$(jq -r ".workers[$w].id" "$CONFIG_FILE")
+            worker_branch=$(jq -r ".workers[$w].branch" "$CONFIG_FILE")
+
+            if [ "$worker_branch" != "null" ] && [ -n "$worker_branch" ]; then
+                # Count commits on this branch in last 20 min
+                commits=$(git log "$worker_branch" --since="20 minutes ago" --oneline 2>/dev/null | wc -l)
+                if [ $commits -gt 0 ]; then
+                    commits_report="${commits_report}\n   • ${worker_id}: ${commits} commits"
+                    ((active_workers++))
+                fi
+            fi
+        done
+
+        # Send celebratory report to Czar
+        if [ $active_workers -gt 0 ]; then
+            tmux send-keys -t $SESSION:0 "echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'" C-m 2>/dev/null || true
+            tmux send-keys -t $SESSION:0 "echo '[$(date '+%H:%M:%S')] 📊 STATUS REPORT - Your workers are CRUSHING IT, my liege!'" C-m 2>/dev/null || true
+            tmux send-keys -t $SESSION:0 "echo -e '${commits_report}'" C-m 2>/dev/null || true
+            tmux send-keys -t $SESSION:0 "echo '   Total active: ${active_workers}/${WORKER_COUNT} workers'" C-m 2>/dev/null || true
+            tmux send-keys -t $SESSION:0 "echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'" C-m 2>/dev/null || true
+            echo "[$(date '+%H:%M:%S')] ✅ Status report sent to Czar" | tee -a "$LOG_FILE"
+        else
+            echo "[$(date '+%H:%M:%S')] No recent activity to report" | tee -a "$LOG_FILE"
+        fi
     fi
 
     # Wait before next check
