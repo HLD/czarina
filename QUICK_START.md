@@ -4,6 +4,24 @@
 
 ---
 
+## 💻 Platform Requirements
+
+**Supported Platforms:**
+- Linux (Ubuntu, Debian, Fedora, etc.)
+- macOS
+- Windows via WSL (Windows Subsystem for Linux)
+
+**Required Dependencies:**
+- bash shell
+- tmux
+- git
+- Python 3.8+
+- jq
+
+**Windows Users:** Czarina requires Unix tooling and cannot run natively on Windows. Install and use WSL.
+
+---
+
 ## 🚀 Installation (One-Time Setup)
 
 ```bash

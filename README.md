@@ -46,6 +46,24 @@ graph LR
 
 ---
 
+## 💻 Platform Requirements
+
+**Supported Platforms:**
+- Linux (Ubuntu, Debian, Fedora, etc.)
+- macOS
+- Windows via WSL (Windows Subsystem for Linux)
+
+**Required:**
+- bash shell
+- tmux (for session management)
+- git
+- Python 3.8+
+- jq (JSON processor)
+
+**Note:** Czarina cannot run natively on Windows - it requires Unix tooling (bash, tmux, git worktrees). Windows users must use WSL.
+
+---
+
 ## ⚡ Quick Start
 
 ```bash

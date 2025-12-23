@@ -1,10 +1,21 @@
 # Claude Code Orchestrator - WSL Guide
 
+## 💻 Windows Users: WSL Required
+
+**Czarina CANNOT run natively on Windows.** It requires Unix tooling (bash, tmux, git worktrees, etc.).
+
+**Windows users MUST use WSL** (Windows Subsystem for Linux).
+
 ## ✅ WSL Compatibility
 
 The orchestrator is **fully compatible with WSL** (Windows Subsystem for Linux).
 
 All fixes have been applied to work seamlessly in WSL environments.
+
+### Supported Platforms
+- ✅ Linux (Ubuntu, Debian, Fedora, etc.) - Native
+- ✅ macOS - Native
+- ✅ Windows via WSL - Required for Windows users
 
 ## 🚀 Quick Start in WSL
 
