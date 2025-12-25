@@ -228,10 +228,15 @@ Quick Commands:
 - Switch sessions: Ctrl+b s
 - Detach: Ctrl+b d
 
+Coordination Commands:
+- Check workers: ${ORCHESTRATOR_DIR}/czarina-core/czar.sh ${CZARINA_DIR} check
+- Status report: ${ORCHESTRATOR_DIR}/czarina-core/czar.sh ${CZARINA_DIR} status
+- Full coordination: ${ORCHESTRATOR_DIR}/czarina-core/czar.sh ${CZARINA_DIR} coordinate
+
 Workers are in windows 1-9 (and mgmt session if >9)
 Daemon and Dashboard are in the mgmt session
 
-✅ All systems ready!
+✅ All systems ready! Czar coordination is active.
 CZAR_EOF
 " C-m
 fi
