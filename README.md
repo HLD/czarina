@@ -100,6 +100,15 @@ czarina daemon start
 - 📊 **Battle-Tested** - SARK v2.0: 10 workers, 3-4x speedup
 - 📚 **Pattern Library** - 30-50% faster debugging with proven patterns
 
+### 🆕 New in v0.5.0
+
+- 📝 **Structured Logging** - Workers log to `.czarina/logs/<worker>.log` with machine-readable event stream
+- 📂 **Session Workspaces** - Complete session artifacts in `.czarina/work/<session-id>/` with closeout reports
+- 🎯 **Proactive Coordination** - Czar monitors and coordinates automatically with periodic status reports
+- 🔗 **Dependency Enforcement** - Workers respect dependency chains with configurable orchestration modes
+- ✨ **Enhanced UX** - Tmux windows show worker IDs, improved daemon output, commit checkpoint templates
+- 📊 **Fixed Dashboard** - Live worker status monitoring with real-time metrics display
+
 ---
 
 ## 🤖 Supported Agents
