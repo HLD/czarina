@@ -336,7 +336,19 @@ while true; do
         fi
     fi
 
-    # 4. Proactive status report to Czar every 5 iterations (~10 min)
+    # 4. Extract worker status from logs
+    if [ -f "${PROJECT_ROOT}/czarina-core/extract-worker-status.sh" ]; then
+        "${PROJECT_ROOT}/czarina-core/extract-worker-status.sh" "$PROJECT_DIR" &>> "$LOG_FILE"
+
+        # Display worker status if there's activity
+        if [ "$has_activity" = true ] && [ -f "${PROJECT_DIR}/worker-status.json" ]; then
+            echo "" | tee -a "$LOG_FILE"
+            echo "👷 Worker Status:" | tee -a "$LOG_FILE"
+            jq -r '.workers | to_entries[] | "   \(.key): \(.value.status) - \(.value.current_task)"' "${PROJECT_DIR}/worker-status.json" 2>/dev/null | tee -a "$LOG_FILE" || true
+        fi
+    fi
+
+    # 5. Proactive status report to Czar every 5 iterations (~10 min)
     if [ $((iteration % 5)) -eq 0 ] && [ "$has_activity" = true ]; then
         echo "[$(date '+%H:%M:%S')] 📊 Generating status report for Czar..." | tee -a "$LOG_FILE"
         cd "$PROJECT_ROOT"
