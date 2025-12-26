@@ -302,6 +302,74 @@ czarina_log_events_for_worker() {
 }
 
 # ============================================================================
+# CONVENIENCE FUNCTIONS FOR WORKERS
+# ============================================================================
+
+# Default log locations for workers (can be overridden by environment)
+CZARINA_LOGS_DIR="${CZARINA_LOGS_DIR:-.czarina/logs}"
+CZARINA_WORKER_LOG="${CZARINA_WORKER_LOG:-${CZARINA_LOGS_DIR}/worker.log}"
+CZARINA_EVENTS_LOG="${CZARINA_EVENTS_LOG:-${CZARINA_LOGS_DIR}/events.jsonl}"
+
+# czarina_log_task_start()
+# Convenience function for workers to log task start
+# Usage: czarina_log_task_start "Task 1.1: Description"
+czarina_log_task_start() {
+    local task="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo "[${timestamp}] 🎯 TASK_START: ${task}" | tee -a "$CZARINA_WORKER_LOG"
+
+    # Also log to events
+    if [[ -n "${CZARINA_WORKER_ID:-}" ]]; then
+        local event_timestamp=$(date -Iseconds)
+        echo "{\"ts\":\"${event_timestamp}\",\"event\":\"TASK_START\",\"worker\":\"${CZARINA_WORKER_ID}\",\"meta\":{\"task\":\"${task}\"}}" >> "$CZARINA_EVENTS_LOG"
+    fi
+}
+
+# czarina_log_task_complete()
+# Convenience function for workers to log task completion
+# Usage: czarina_log_task_complete "Task 1.1: Description"
+czarina_log_task_complete() {
+    local task="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo "[${timestamp}] ✅ TASK_COMPLETE: ${task}" | tee -a "$CZARINA_WORKER_LOG"
+
+    # Also log to events
+    if [[ -n "${CZARINA_WORKER_ID:-}" ]]; then
+        local event_timestamp=$(date -Iseconds)
+        echo "{\"ts\":\"${event_timestamp}\",\"event\":\"TASK_COMPLETE\",\"worker\":\"${CZARINA_WORKER_ID}\",\"meta\":{\"task\":\"${task}\"}}" >> "$CZARINA_EVENTS_LOG"
+    fi
+}
+
+# czarina_log_checkpoint()
+# Convenience function for workers to log checkpoints (usually commits)
+# Usage: czarina_log_checkpoint "feature_implemented"
+czarina_log_checkpoint() {
+    local checkpoint="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo "[${timestamp}] 💾 CHECKPOINT: ${checkpoint}" | tee -a "$CZARINA_WORKER_LOG"
+
+    # Also log to events
+    if [[ -n "${CZARINA_WORKER_ID:-}" ]]; then
+        local event_timestamp=$(date -Iseconds)
+        echo "{\"ts\":\"${event_timestamp}\",\"event\":\"CHECKPOINT\",\"worker\":\"${CZARINA_WORKER_ID}\",\"meta\":{\"checkpoint\":\"${checkpoint}\"}}" >> "$CZARINA_EVENTS_LOG"
+    fi
+}
+
+# czarina_log_worker_complete()
+# Convenience function for workers to log completion
+# Usage: czarina_log_worker_complete
+czarina_log_worker_complete() {
+    local timestamp=$(date '+%H:%M:%S')
+    echo "[${timestamp}] 🎉 WORKER_COMPLETE: All tasks done" | tee -a "$CZARINA_WORKER_LOG"
+
+    # Also log to events
+    if [[ -n "${CZARINA_WORKER_ID:-}" ]]; then
+        local event_timestamp=$(date -Iseconds)
+        echo "{\"ts\":\"${event_timestamp}\",\"event\":\"WORKER_COMPLETE\",\"worker\":\"${CZARINA_WORKER_ID}\",\"meta\":{}}" >> "$CZARINA_EVENTS_LOG"
+    fi
+}
+
+# ============================================================================
 # EXPORT FUNCTIONS
 # ============================================================================
 
@@ -318,3 +386,7 @@ export -f czarina_log_tail
 export -f czarina_log_follow
 export -f czarina_log_events_since
 export -f czarina_log_events_for_worker
+export -f czarina_log_task_start
+export -f czarina_log_task_complete
+export -f czarina_log_checkpoint
+export -f czarina_log_worker_complete
