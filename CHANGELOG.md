@@ -5,6 +5,49 @@ All notable changes to Czarina will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-26
+
+### Added
+
+**Comprehensive Closeout Reports (E#17)** - Rich, detailed project closeout documentation
+  - Worker summaries with branch information and activity metrics
+  - Detailed commit history per worker with commit counts
+  - Files changed analysis (per worker and overall)
+  - Orchestration duration tracking (start to end time)
+  - Auto-archive to `.czarina/phases/phase-1-{version}/` directory
+  - Two-tier reporting: Full CLOSEOUT.md and quick PHASE_SUMMARY.md
+  - Template system: `czarina-core/templates/CLOSEOUT.md`
+  - Key metrics table: commits, files changed, lines added/removed
+  - Git statistics: branch status, repository state
+  - Complete configuration archive for reproducibility
+  - Implementation: Enhanced `czarina-core/closeout-project.sh`
+
+**Logging Auto-Initialization** - Logging system automatically starts with orchestration
+  - Zero manual setup required
+  - Logging directories created on `czarina launch`
+  - Event stream and worker logs ready immediately
+  - Implementation: `czarina-core/launch-project-v2.sh`
+
+### Changed
+
+- Closeout reports now include comprehensive metrics and analysis
+- Phase archives include both detailed and summary reports
+- Orchestration start time tracked for duration calculation
+- Enhanced closeout report generation with worker-specific sections
+
+### Fixed
+
+- **Enhancement #17** - Better closeout reports
+  - Before: Basic report with limited information
+  - After: Comprehensive analysis with worker metrics, commits, files, and duration
+
+---
+
+**Release Focus:**
+This minor version adds professional closeout reporting for better project documentation and archiving. The comprehensive reports provide complete visibility into what each worker accomplished during the orchestration.
+
+[Full Changelog](https://github.com/apathy-ca/czarina/compare/v0.5.1...v0.6.0)
+
 ## [0.5.1] - 2025-12-25
 
 ### Added

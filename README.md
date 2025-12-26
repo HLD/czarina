@@ -100,7 +100,55 @@ czarina daemon start
 - 📊 **Battle-Tested** - SARK v2.0: 10 workers, 3-4x speedup
 - 📚 **Pattern Library** - 30-50% faster debugging with proven patterns
 
-### ✨ What's New in v0.5.1
+### ✨ What's New in v0.6.0
+
+**Minor Release - Professional Closeout Reporting** (December 2025)
+
+Comprehensive project closeout documentation and reporting:
+
+#### 📊 Comprehensive Closeout Reports (E#17)
+Rich, detailed reports when orchestrations complete. **Complete visibility into project progress!**
+
+```bash
+czarina closeout  # Generates comprehensive reports with all metrics
+```
+
+**What's included:**
+- Worker summaries with branch information and activity
+- Detailed commit history per worker with commit counts
+- Files changed analysis (per worker and overall)
+- Orchestration duration tracking (start to end time)
+- Key metrics: commits, files, lines added/removed
+- Git statistics and repository state
+
+**Archive structure:**
+```
+.czarina/
+├── archive/2025-12-26_14-30-00/
+│   └── CLOSEOUT.md          # Full detailed report
+└── phases/phase-1-v0.6.0/
+    ├── CLOSEOUT.md          # Full report (archived)
+    ├── PHASE_SUMMARY.md     # Quick reference
+    ├── config.json          # Configuration backup
+    └── logs/                # Logs backup
+```
+
+**Benefits:**
+- Complete project documentation
+- Historical phase tracking
+- Easy comparison between versions
+- Professional audit trail
+
+See [docs/MIGRATION_v0.6.0.md](docs/MIGRATION_v0.6.0.md)
+
+#### 🚀 Logging Auto-Initialization
+Logging system automatically starts with orchestration. **Zero manual setup!**
+
+- Log directories created on `czarina launch`
+- Duration tracking works immediately
+- Consistent logging structure
+
+### 🆕 New in v0.5.1
 
 **Patch Release - UX Enhancements** (December 2025)
 
