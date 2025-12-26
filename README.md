@@ -100,6 +100,39 @@ czarina daemon start
 - 📊 **Battle-Tested** - SARK v2.0: 10 workers, 3-4x speedup
 - 📚 **Pattern Library** - 30-50% faster debugging with proven patterns
 
+### ✨ What's New in v0.5.1
+
+**Patch Release - UX Enhancements** (December 2025)
+
+Two quality-of-life improvements discovered during v0.5.0 dogfooding:
+
+#### 🚀 Auto-Launch Agent System
+Workers automatically start with AI agents pre-configured. **Zero manual setup!**
+
+```bash
+czarina launch  # Agents auto-launch with instructions loaded
+```
+
+**Before:** 18 manual steps (switch windows, start agents, paste instructions)
+**After:** 0 manual steps
+
+- Auto-launches Claude Code, Aider, or Cursor agents
+- Pre-loads worker instructions from `.czarina/workers/<worker-id>.md`
+- Auto-configures approval permissions
+- Creates `WORKER_IDENTITY.md` for context
+
+See [czarina-core/docs/AUTO_LAUNCH.md](czarina-core/docs/AUTO_LAUNCH.md)
+
+#### 🎭 Daemon Quiet Mode
+Daemon only outputs when workers are active. **No more text scrolling off screen!**
+
+- Silent iterations when workers are idle (>5 min)
+- Clean, elegant output that preserves important messages
+- Configurable via `DAEMON_ACTIVITY_THRESHOLD` (default: 300s)
+- Disable with `DAEMON_ALWAYS_OUTPUT=true` for legacy behavior
+
+See [czarina-core/docs/DAEMON.md](czarina-core/docs/DAEMON.md)
+
 ### 🆕 New in v0.5.0
 
 - 📝 **Structured Logging** - Workers log to `.czarina/logs/<worker>.log` with machine-readable event stream
