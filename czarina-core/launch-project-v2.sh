@@ -190,6 +190,12 @@ cat <<'READY_EOF'
 READY_EOF
 " C-m
     sleep 0.1
+
+    # Auto-launch agent if configured
+    if [ -n "$worker_agent" ] && [ "$worker_agent" != "null" ]; then
+        echo "      🤖 Launching $worker_agent agent..."
+        "${ORCHESTRATOR_DIR}/czarina-core/agent-launcher.sh" launch "$worker_id" "$worker_num" "$worker_agent" "$session"
+    fi
 }
 
 # Create main session
