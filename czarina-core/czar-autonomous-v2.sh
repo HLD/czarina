@@ -23,6 +23,9 @@ source "${SCRIPT_DIR}/logging.sh"
 # Source hopper integration (Task 2)
 source "${SCRIPT_DIR}/czar-hopper-integration.sh"
 
+# Source dependency tracking (Task 3)
+source "${SCRIPT_DIR}/czar-dependency-tracking.sh"
+
 # Get czarina directory (either from parent dir or environment)
 CZARINA_DIR="${CZARINA_DIR:-$(dirname "$SCRIPT_DIR")}"
 
@@ -379,6 +382,9 @@ check_worker_health() {
 
     # Monitor hoppers and assign work to idle workers (Task 2)
     monitor_hoppers "$idle_count" "${idle_worker_array[@]}"
+
+    # Monitor dependencies and suggest integration strategies (Task 3)
+    monitor_dependencies "$iteration"
 
     # Every N iterations, log a status summary
     if [[ $((iteration % STATUS_SUMMARY_INTERVAL)) -eq 0 ]]; then
