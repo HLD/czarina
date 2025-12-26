@@ -203,6 +203,30 @@ echo -e "${GREEN}📦 Creating main session: ${SESSION_NAME}${NC}"
 tmux new-session -d -s "$SESSION_NAME" -n "czar"
 sleep 0.3
 
+# Initialize logging system
+echo -e "${BLUE}📝 Initializing logging system...${NC}"
+
+# Source logging functions
+source "${ORCHESTRATOR_DIR}/czarina-core/logging.sh"
+
+# Initialize logging directories
+LOGS_DIR="${CZARINA_DIR}/logs"
+mkdir -p "$LOGS_DIR"
+
+# Initialize orchestration log
+ORCH_LOG="${LOGS_DIR}/orchestration.log"
+echo "=== Czarina Orchestration Started - $(date -Iseconds) ===" > "$ORCH_LOG"
+echo "Project: ${PROJECT_NAME}" >> "$ORCH_LOG"
+echo "Session: ${SESSION_NAME}" >> "$ORCH_LOG"
+echo "Workers: ${WORKER_COUNT}" >> "$ORCH_LOG"
+echo "" >> "$ORCH_LOG"
+
+# Initialize event stream
+EVENTS_FILE="${LOGS_DIR}/events.jsonl"
+echo "{\"ts\":\"$(date -Iseconds)\",\"event\":\"ORCHESTRATION_START\",\"project\":\"${PROJECT_NAME}\",\"workers\":${WORKER_COUNT}}" > "$EVENTS_FILE"
+
+echo -e "${GREEN}✅ Logging initialized: ${LOGS_DIR}${NC}"
+
 # Set up Czar window (window 0)
 echo "   • Window 0: Czar (Orchestrator)"
 tmux send-keys -t "${SESSION_NAME}:czar" "cd ${PROJECT_ROOT}" C-m
