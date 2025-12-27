@@ -259,3 +259,146 @@ except Exception as e:
 
 ---
 
+## 3. Czar Auto-Launch
+
+### Test Case 3.1: Czar Auto-Launch ✅ PASS
+
+**Context:** Current v0.6.1 orchestration has Czar auto-launched in window 0
+
+**Test Method:** Code analysis and verification of current running orchestration
+
+**Implementation Review:**
+Located at `launch-project-v2.sh:253-297`:
+```bash
+# Set up Czar window (window 0)
+echo "   • Window 0: Czar (Orchestrator)"
+tmux new-session -d -s "$SESSION_NAME" -n "czar"
+tmux send-keys -t "${SESSION_NAME}:czar" "cd ${PROJECT_ROOT}" C-m
+
+# Check if CZAR.md exists, otherwise show orchestrator info
+CZAR_FILE="${CZARINA_DIR}/workers/CZAR.md"
+if [ -f "$CZAR_FILE" ]; then
+    tmux send-keys -t "${SESSION_NAME}:czar" "cat ${CZAR_FILE}" C-m
+fi
+
+# Auto-launch agent for Czar window
+CZAR_AGENT=$(jq -r '.czar.agent // "claude"' "$CONFIG_FILE" 2>/dev/null || echo "claude")
+if [ -n "$CZAR_AGENT" ] && [ "$CZAR_AGENT" != "null" ]; then
+    echo "   🤖 Launching Czar agent..."
+    "${ORCHESTRATOR_DIR}/czarina-core/agent-launcher.sh" launch "czar" 0 "$CZAR_AGENT" "$SESSION_NAME"
+fi
+```
+
+**Agent Launcher Integration:**
+Located at `agent-launcher.sh:17-21` and `agent-launcher.sh:238-242`:
+```bash
+# Czar runs from project root, workers run from worktrees
+if [ "$worker_id" == "czar" ]; then
+    local work_path="$project_root"
+    create_czar_identity "$work_path"
+else
+    # Worker path...
+fi
+
+# In launch_claude function:
+if [ "$worker_id" == "czar" ]; then
+    local identity_file=".czarina/CZAR_IDENTITY.md"
+    local instructions_prompt="Read .czarina/CZAR_IDENTITY.md to understand your role as Czar, then monitor worker progress and coordinate integration."
+fi
+```
+
+**Validation Checks:**
+- ✅ Czar window created as window 0 in main session
+- ✅ Window named "czar" (not "worker0" or generic name)
+- ✅ Agent auto-launched for Czar (defaults to "claude")
+- ✅ Special handling for Czar vs workers (root vs worktree)
+- ✅ Czar gets custom identity file and prompt
+- ✅ CZAR_IDENTITY.md created before agent launch
+
+**Observed Behavior:**
+The v0.6.1 orchestration successfully:
+1. Created window 0 named "czar" in main session
+2. Auto-launched Claude Code agent in Czar window
+3. Provided Czar-specific instructions
+4. Separated Czar from worker windows (0 vs 1-N)
+
+**Verdict:** Czar auto-launch works perfectly. The Czar is properly set up in window 0 with its own Claude agent, identity file, and coordination instructions.
+
+---
+
+### Test Case 3.2: Czar Identity ✅ PASS
+
+**Test Method:** Analysis of CZAR_IDENTITY.md file and generation logic
+
+**Identity File Location:** `.czarina/CZAR_IDENTITY.md`
+
+**Generation Logic:**
+Located at `agent-launcher.sh:132-230`:
+```bash
+create_czar_identity() {
+  local project_root="$1"
+  local config_path=".czarina/config.json"
+
+  local project_name=$(jq -r '.project.name' $config_path)
+  local worker_count=$(jq '.workers | length' $config_path)
+
+  cat > "$project_root/.czarina/CZAR_IDENTITY.md" << EOF
+  # Czar Identity: Orchestration Coordinator
+  ...
+  EOF
+
+  echo "  ✅ Created CZAR_IDENTITY.md"
+}
+```
+
+**Content Validation:**
+Examined `.czarina/CZAR_IDENTITY.md`:
+
+✅ **Includes Role Definition:**
+- Clear identity as "Czar - the orchestration coordinator"
+- Project context (name, worker count, session)
+
+✅ **Includes Responsibilities:**
+1. Monitor Worker Progress
+2. Manage Integration
+3. Track Project Health
+4. Coordinate Communication
+
+✅ **Includes Tmux Navigation Commands:**
+```bash
+Ctrl+b 1    # Worker 1
+Ctrl+b 2    # Worker 2
+Ctrl+b 0    # Back to Czar
+Ctrl+b w    # List windows
+Ctrl+b s    # Switch sessions
+Ctrl+b d    # Detach
+```
+
+✅ **Includes Monitoring Commands:**
+```bash
+# Check all worker branches
+cd .czarina/worktrees
+for worker in */ ; do
+    cd $worker && git status --short && cd ..
+done
+
+# View logs
+tail -f .czarina/logs/*.log
+czarina status
+cat .czarina/logs/events.jsonl | tail -20
+```
+
+✅ **Includes Mission Statement:**
+Clear guidance on staying informed, proactive, coordinated, and focused.
+
+**Completeness Assessment:**
+- ✅ Tmux navigation: Complete with all essential shortcuts
+- ✅ Coordination instructions: Clear responsibilities defined
+- ✅ Monitoring tools: Comprehensive git, log, and status commands
+- ✅ Context awareness: Project name and worker count injected
+- ✅ User-friendly: Well-formatted, clear sections
+
+**Verdict:** CZAR_IDENTITY.md is complete and comprehensive. It provides everything the Czar needs to effectively coordinate workers, monitor progress, and manage the orchestration.
+
+---
+
