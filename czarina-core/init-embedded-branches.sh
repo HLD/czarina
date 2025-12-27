@@ -67,6 +67,9 @@ fi
 # Parse config
 PROJECT_NAME=$(jq -r '.project.name' "$CONFIG_FILE")
 REPO_DIR=$(jq -r '.project.repository' "$CONFIG_FILE")
+OMNIBUS_BRANCH=$(jq -r '.project.omnibus_branch // "main"' "$CONFIG_FILE")
+ORCHESTRATION_MODE=$(jq -r '.orchestration.mode // "local"' "$CONFIG_FILE")
+AUTO_PUSH=$(jq -r '.orchestration.auto_push_branches // false' "$CONFIG_FILE")
 
 echo "╔════════════════════════════════════════════════════════════╗"
 echo "║         Git Branch Initialization for Workers             ║"
@@ -134,10 +137,19 @@ for ((i=0; i<$WORKER_COUNT; i++)); do
     worker_id=$(jq -r ".workers[$i].id" "$CONFIG_FILE")
     branch=$(jq -r ".workers[$i].branch" "$CONFIG_FILE")
     description=$(jq -r ".workers[$i].description" "$CONFIG_FILE")
+    worker_role=$(jq -r ".workers[$i].role // \"worker\"" "$CONFIG_FILE")
 
     echo -e "${BLUE}→ Processing:${NC} $worker_id"
     echo -e "  ${BLUE}Branch:${NC}      $branch"
     echo -e "  ${BLUE}Description:${NC} $description"
+
+    # VALIDATION: Non-integration workers CANNOT work on omnibus branch
+    if [ "$branch" == "$OMNIBUS_BRANCH" ] && [ "$worker_role" != "integration" ]; then
+        echo -e "  ${RED}❌ ERROR: Worker '$worker_id' cannot work on omnibus branch '$OMNIBUS_BRANCH'${NC}"
+        echo -e "  ${YELLOW}💡 Only workers with role='integration' can use the omnibus branch${NC}"
+        echo -e "  ${YELLOW}💡 Omnibus is for integration/release only, not feature work${NC}"
+        exit 1
+    fi
 
     # Check if branch exists locally
     if git show-ref --verify --quiet "refs/heads/$branch"; then
@@ -167,11 +179,16 @@ for ((i=0; i<$WORKER_COUNT; i++)); do
             echo -e "  ${YELLOW}Status:${NC} Creating new branch..."
             git checkout -b "$branch" "$MAIN_BRANCH"
 
-            if $HAS_REMOTE; then
+            # Conditional push based on orchestration mode
+            if $HAS_REMOTE && [ "$ORCHESTRATION_MODE" == "github" ] && [ "$AUTO_PUSH" == "true" ]; then
                 git push -u origin "$branch"
-                echo -e "  ${GREEN}✓ Branch created and pushed to remote${NC}"
-            else
+                echo -e "  ${GREEN}✓ Branch created and pushed to remote (github orchestration mode)${NC}"
+            elif $HAS_REMOTE; then
                 echo -e "  ${GREEN}✓ Branch created locally${NC}"
+                echo -e "  ${YELLOW}💡 GitHub push disabled (orchestration.mode='$ORCHESTRATION_MODE')${NC}"
+                echo -e "  ${YELLOW}💡 Czar will push when ready, or set orchestration.auto_push_branches=true${NC}"
+            else
+                echo -e "  ${GREEN}✓ Branch created locally (no remote)${NC}"
             fi
 
             git checkout "$MAIN_BRANCH"

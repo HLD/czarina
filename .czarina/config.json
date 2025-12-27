@@ -1,73 +1,83 @@
 {
   "project": {
     "name": "czarina",
-    "slug": "czarina",
+    "slug": "czarina-v0_6_0",
     "repository": "/home/jhenry/Source/czarina",
-    "orchestration_dir": ".czarina",
-    "version": "0.5.0",
-    "description": "Czarina Self-Improvement - Dogfooding Excellence"
+    "orchestration_dir": ".czarina-v0.6.0",
+    "version": "0.6.0",
+    "phase": 1,
+    "omnibus_branch": "cz1/release/v0.6.0",
+    "description": "Czarina v0.6.0 - Autonomous Orchestration with Hopper System"
+  },
+  "hopper": {
+    "enabled": true,
+    "project_hopper": ".czarina/hopper",
+    "phase_hopper": ".czarina-v0.6.0/phase-hopper",
+    "czar_monitoring": {
+      "enabled": false,
+      "check_interval": 900
+    }
   },
   "workers": [
     {
-      "id": "foundation",
-      "agent": "aider",
-      "branch": "feat/structured-logging-workspace",
-      "description": "Structured Logging + Workspace Architecture",
-      "versions": ["v0.5.0-foundation"],
-      "token_budget": 2000000,
-      "dependencies": []
-    },
-    {
-      "id": "coordination",
-      "agent": "aider",
-      "branch": "feat/proactive-coordination",
-      "description": "Proactive Czar + Enhanced Daemon + Closeout Reports",
-      "versions": ["v0.5.0-coordination"],
-      "token_budget": 2500000,
-      "dependencies": ["foundation"]
-    },
-    {
-      "id": "ux-polish",
-      "agent": "cursor",
-      "branch": "feat/ux-improvements",
-      "description": "Tmux Window Names + Commit Checkpoints",
-      "versions": ["v0.5.0-ux"],
+      "id": "logging",
+      "agent": "claude",
+      "branch": "cz1/feat/logging",
+      "description": "Structured Logging Integration (E#16 + A2)",
       "token_budget": 1000000,
-      "dependencies": []
+      "dependencies": [],
+      "planned_duration": "3 days"
     },
     {
-      "id": "dependencies",
-      "agent": "aider",
-      "branch": "feat/dependency-enforcement",
-      "description": "Worker Dependency Enforcement System",
-      "versions": ["v0.5.0-deps"],
+      "id": "phase-mgmt",
+      "agent": "claude",
+      "branch": "cz1/feat/phase-mgmt",
+      "description": "Phase Management & Branch Naming (E#13)",
       "token_budget": 1500000,
-      "dependencies": ["foundation"]
+      "dependencies": [],
+      "planned_duration": "4 days"
     },
     {
-      "id": "dashboard",
-      "agent": "cursor",
-      "branch": "feat/dashboard-fix",
-      "description": "Dashboard Investigation & Fix",
-      "versions": ["v0.5.0-dashboard"],
-      "token_budget": 1000000,
-      "dependencies": []
+      "id": "hopper",
+      "agent": "claude",
+      "branch": "cz1/feat/hopper",
+      "description": "Two-Level Hopper System (E#14 + B3)",
+      "token_budget": 2000000,
+      "dependencies": [],
+      "planned_duration": "5 days"
+    },
+    {
+      "id": "autonomous-czar",
+      "agent": "claude",
+      "branch": "cz1/feat/autonomous-czar",
+      "description": "Autonomous Czar Loop (A3 + A4)",
+      "token_budget": 2000000,
+      "dependencies": ["logging", "hopper"],
+      "planned_duration": "5 days"
     },
     {
       "id": "qa",
-      "agent": "aider",
-      "branch": "feat/v0.5.0-integration",
-      "description": "Integration Testing & v0.5.0 Release Prep",
-      "versions": ["v0.5.0-qa"],
+      "agent": "claude",
+      "branch": "cz1/release/v0.6.0",
+      "description": "QA, Quick Wins, Integration & Release (E#15, E#17)",
+      "role": "integration",
       "token_budget": 1500000,
-      "dependencies": ["foundation", "coordination", "ux-polish", "dependencies", "dashboard"]
+      "dependencies": ["logging", "phase-mgmt", "hopper", "autonomous-czar"],
+      "merges": ["logging", "phase-mgmt", "hopper", "autonomous-czar"],
+      "planned_duration": "3 days"
     }
   ],
+  "orchestration": {
+    "mode": "local",
+    "auto_push_branches": false,
+    "notes": "mode: 'local' (git worktrees) or 'github' (Claude Code Web). auto_push_branches only applies to github mode."
+  },
   "daemon": {
     "enabled": true,
     "auto_approve": [
       "read",
       "write",
+      "edit",
       "commit"
     ]
   }
