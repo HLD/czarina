@@ -37,6 +37,9 @@ launch_worker_agent() {
     claude)
       launch_claude "$worker_id" "$window_index" "$session"
       ;;
+    kilocode)
+      launch_kilocode "$worker_id" "$window_index" "$session"
+      ;;
     cursor)
       echo "⚠️  Cursor requires manual launch (GUI application)"
       echo "   Worker $worker_id window: $window_index"
@@ -274,6 +277,33 @@ EOF
   tmux send-keys -t $session:$window_index "claude --permission-mode bypassPermissions '$instructions_prompt'" C-m
 
   echo "  ✅ Launched Claude for $worker_id"
+}
+
+launch_kilocode() {
+  local worker_id="$1"
+  local window_index="$2"
+  local session="$3"
+
+  # Czar runs from project root, workers from worktrees
+  if [ "$worker_id" == "czar" ]; then
+    local work_path="."
+    local identity_file=".czarina/CZAR_IDENTITY.md"
+    local instructions_prompt="Read .czarina/CZAR_IDENTITY.md to understand your role as Czar, then monitor worker progress and coordinate integration."
+  else
+    local work_path=".czarina/worktrees/$worker_id"
+    local identity_file="WORKER_IDENTITY.md"
+    local instructions_prompt="Read WORKER_IDENTITY.md to learn who you are, then read your full instructions at ../workers/$worker_id.md and begin Task 1"
+  fi
+
+  echo "  ✅ Kilocode will use auto-approve mode (--yolo)"
+
+  # Launch Kilocode with autonomous mode and auto-approve
+  # --auto: Run in autonomous mode (non-interactive)
+  # --yolo: Auto-approve all tool permissions
+  # --workspace: Set working directory
+  tmux send-keys -t $session:$window_index "kilocode --auto --yolo --workspace '$work_path' '$instructions_prompt'" C-m
+
+  echo "  ✅ Launched Kilocode for $worker_id"
 }
 
 launch_aider() {

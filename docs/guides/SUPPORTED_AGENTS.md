@@ -2,7 +2,7 @@
 
 ## Overview
 
-Czarina now supports **8 different AI coding assistants** for workers! Each agent can run the same worker prompts using their native capabilities.
+Czarina now supports **9 different AI coding assistants** for workers! Each agent can run the same worker prompts using their native capabilities.
 
 **Created by:** ARCHITECT and INTEGRATOR workers (feat/agent-profiles branch)
 
@@ -247,7 +247,66 @@ windsurf czarina-myproject/workers/engineer1.md
 
 ---
 
-### 8. Human 👤 (Manual Mode)
+### 8. Kilocode ⚡ (CLI Autonomous Agent)
+**Type:** CLI
+**Vendor:** Kilocode AI
+**Website:** https://kilocode.ai
+
+**Capabilities:**
+- ✅ Native file reading/writing
+- ✅ Native git support
+- ✅ Terminal access
+- ✅ Multi-file editing
+- ✅ Native search
+- ✅ Autonomous mode with auto-approval
+
+**How to use:**
+```bash
+# Launch with autonomous mode and auto-approval
+kilocode --auto --yolo --workspace /path/to/workspace "Read WORKER_IDENTITY.md and begin tasks"
+
+# Or use launcher (auto-configured)
+./czarina-core/launch-agent.sh kilocode engineer1
+```
+
+**Best for:**
+- Fully autonomous execution
+- CLI-based workflows
+- Developers who prefer terminal
+- Cost-effective alternative to Claude
+
+**Special features:**
+- `--auto` mode for non-interactive operation
+- `--yolo` flag for auto-approving all permissions
+- Multiple provider support (OpenAI, Anthropic, etc.)
+- JSON I/O mode for programmatic control
+- Parallel mode with automatic branching
+
+**Czarina Integration:**
+- ✅ Auto-launch support in `czarina launch`
+- ✅ Auto-approval mode enabled (`--yolo`)
+- ✅ Autonomous operation (`--auto`)
+- ✅ Workspace auto-configuration
+
+**Configuration Example:**
+```json
+{
+  "workers": [
+    {
+      "id": "worker1",
+      "agent": "kilocode",
+      "branch": "feat/worker1",
+      "description": "Worker using Kilocode"
+    }
+  ]
+}
+```
+
+**Compatibility:** 95% ✅
+
+---
+
+### 9. Human 👤 (Manual Mode)
 **Type:** Display only
 **Vendor:** You! 😊
 
@@ -282,6 +341,7 @@ windsurf czarina-myproject/workers/engineer1.md
 | **Windsurf** | Desktop | ✅ | ✅✅ | Trial/Paid | ✅ |
 | **Codeium** | Extension | ⚠️ | ⚠️ | Free | ⚠️ |
 | **Continue** | Extension | ⚠️ | ⚠️ | Free | ⚠️ |
+| **Kilocode** | CLI | ✅ | ✅✅ | Paid | ✅ |
 | **Human** | Manual | ✅ | ❌ | Free | ✅ |
 
 **Legend:**

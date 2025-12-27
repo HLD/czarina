@@ -3,8 +3,9 @@
 **Priority:** Medium
 **Complexity:** Low
 **Tags:** agent-support, cli-integration, tooling
-**Status:** Backlog
+**Status:** ✅ Implemented
 **Created:** 2025-12-26
+**Completed:** 2025-12-27
 
 ---
 
@@ -105,8 +106,51 @@ esac
 
 ---
 
-**Next Steps:**
-1. Research kilocode CLI flags and capabilities
-2. Update agent-launcher.sh with conditional logic
-3. Test with sample kilocode installation
-4. Document usage patterns
+## Implementation
+
+**Completed:** 2025-12-27 (v0.6.2)
+
+### Changes Made
+
+1. **Updated agent-launcher.sh**
+   - Added `launch_kilocode()` function
+   - Uses `--auto` flag for autonomous mode
+   - Uses `--yolo` flag for auto-approve permissions
+   - Uses `--workspace` flag to set working directory
+
+2. **Kilocode Launch Command**
+   ```bash
+   kilocode --auto --yolo --workspace '$work_path' '$instructions_prompt'
+   ```
+
+3. **Configuration Support**
+   Workers can now specify `"agent": "kilocode"` in config.json
+
+### Usage Example
+
+```json
+{
+  "workers": [
+    {
+      "id": "worker1",
+      "agent": "kilocode",
+      "branch": "feat/worker1",
+      "description": "Worker using Kilocode agent"
+    },
+    {
+      "id": "worker2",
+      "agent": "claude",
+      "branch": "feat/worker2",
+      "description": "Worker using Claude Code agent"
+    }
+  ]
+}
+```
+
+### Testing
+
+To test kilocode support:
+1. Create a small orchestration with one kilocode worker
+2. Run `czarina launch`
+3. Verify kilocode launches with auto-approve mode
+4. Verify worker can read identity and execute tasks
