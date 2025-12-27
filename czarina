@@ -11,6 +11,7 @@ Usage:
     czarina analyze <plan-file> --init           - Analyze and initialize project
     czarina analyze <plan-file> --output file    - Save analysis to file
     czarina init [project-name]                  - Initialize orchestration in current dir
+    czarina init --plan <plan.md>                - Initialize from implementation plan (launches agent)
     czarina init --from-config <config.json>     - Initialize from pre-made config file
     czarina init --from-config <file> --force    - Re-initialize (replaces existing)
     czarina list                                 - List all Czarina projects
@@ -362,7 +363,7 @@ You are the **Czar** - the orchestration coordinator for this multi-agent projec
     print("  2. czarina launch")
 
 
-def cmd_init(project_name=None, from_config=None, force=False):
+def cmd_init(project_name=None, from_config=None, from_plan=None, force=False):
     """Initialize Czarina orchestration in current directory"""
     current_dir = Path.cwd()
 
@@ -414,6 +415,109 @@ def cmd_init(project_name=None, from_config=None, force=False):
                 config_file.unlink()
             if workers_dir.exists():
                 shutil.rmtree(workers_dir)
+
+    # Handle --from-plan (launch Claude Code to create config from plan)
+    if from_plan:
+        plan_path = Path(from_plan).resolve()
+        if not plan_path.exists():
+            print(f"❌ Plan file not found: {from_plan}")
+            sys.exit(1)
+
+        print("🔍 Initializing from plan file")
+        print("=" * 60)
+        print()
+        print(f"📄 Plan: {from_plan}")
+        print()
+
+        # Create .czarina directory if it doesn't exist
+        if not czarina_dir.exists():
+            print("📁 Creating .czarina directory structure...")
+            czarina_dir.mkdir()
+            (czarina_dir / "workers").mkdir()
+            print("   ✅ Created .czarina/")
+            print("   ✅ Created .czarina/workers/")
+            print()
+
+        # Build Claude Code prompt
+        prompt = f"""Read the implementation plan at {plan_path} and help me set up a czarina orchestration.
+
+Please:
+1. Analyze the plan and identify the key workers needed
+2. Create a config.json file in .czarina/ with the project structure
+3. Create worker definition markdown files in .czarina/workers/ for each worker
+4. Follow the czarina configuration format
+
+The config.json should include:
+- project metadata (name, slug, version, phase, omnibus_branch)
+- orchestration mode (local or github)
+- worker definitions (id, agent, branch, dependencies, role)
+- any special configuration (hopper, daemon settings, etc.)
+
+Each worker markdown file should include:
+- Mission and deliverables
+- Detailed task breakdown
+- References to relevant documentation
+
+Let's get started!"""
+
+        print("🚀 Launching Claude Code to help with orchestration setup...")
+        print()
+        print("💡 Claude will help you create:")
+        print("   - .czarina/config.json")
+        print("   - .czarina/workers/*.md files")
+        print()
+
+        # Try to find an available coding agent (claude -> kilocode -> aider)
+        import subprocess
+        import shutil
+
+        agents = [
+            ("claude", ["claude", prompt]),
+            ("kilocode", ["kilocode", prompt]),
+            ("aider", ["aider", "--message", prompt])
+        ]
+
+        agent_found = None
+        for agent_name, agent_cmd in agents:
+            if shutil.which(agent_name):
+                agent_found = (agent_name, agent_cmd)
+                break
+
+        if not agent_found:
+            print()
+            print("❌ No coding agent found!")
+            print("   Please install one of:")
+            print("     - Claude Code: https://code.claude.com")
+            print("     - Kilocode: https://kilocode.com")
+            print("     - Aider: https://aider.chat")
+            print()
+            sys.exit(1)
+
+        agent_name, agent_cmd = agent_found
+        print(f"   Using: {agent_name}")
+        print()
+
+        try:
+            subprocess.run(agent_cmd, check=True)
+
+            print()
+            print("=" * 60)
+            print()
+            print("✅ Czarina initialized from plan!")
+            print()
+            print("📋 Next steps:")
+            print("   1. Verify .czarina/config.json was created")
+            print("   2. Review .czarina/workers/*.md files")
+            print("   3. Launch the orchestration:")
+            print("      czarina launch")
+            print()
+            return
+
+        except Exception as e:
+            print()
+            print(f"❌ Failed to launch {agent_name}: {e}")
+            print()
+            sys.exit(1)
 
     # Handle --from-config (user provides pre-made config)
     if from_config:
@@ -1102,8 +1206,9 @@ def main():
                 interactive = True
         cmd_analyze(plan_file, output_file, auto_init, interactive)
     elif command == "init":
-        # Check for --from-config and --force flags
+        # Check for --from-config, --from-plan, and --force flags
         from_config = None
+        from_plan = None
         project_name = None
         force = False
 
@@ -1117,6 +1222,13 @@ def main():
                 else:
                     print("❌ --from-config requires a file path")
                     sys.exit(1)
+            elif arg == "--from-plan" or arg == "--plan":
+                if i + 1 < len(sys.argv):
+                    from_plan = sys.argv[i + 1]
+                    i += 2
+                else:
+                    print("❌ --plan requires a file path")
+                    sys.exit(1)
             elif arg == "--force":
                 force = True
                 i += 1
@@ -1126,7 +1238,7 @@ def main():
             else:
                 i += 1
 
-        cmd_init(project_name, from_config, force)
+        cmd_init(project_name, from_config, from_plan, force)
     elif command == "list":
         cmd_list()
     elif command == "launch":
