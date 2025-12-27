@@ -1,0 +1,153 @@
+#!/bin/bash
+# Czarina Pre-Push Hook
+# Validates worker dependencies before allowing push to remote
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+# Find project root (contains .czarina/)
+find_project_root() {
+    local current="$PWD"
+    while [ "$current" != "/" ]; do
+        if [ -d "$current/.czarina" ]; then
+            echo "$current"
+            return 0
+        fi
+        current="$(dirname "$current")"
+    done
+    return 1
+}
+
+PROJECT_ROOT=$(find_project_root)
+if [ -z "$PROJECT_ROOT" ]; then
+    echo -e "${YELLOW}⚠️  Not in czarina project, skipping dependency checks${NC}" >&2
+    exit 0
+fi
+
+CONFIG_FILE="${PROJECT_ROOT}/.czarina/config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${YELLOW}⚠️  No config.json found, skipping dependency checks${NC}" >&2
+    exit 0
+fi
+
+# Get current branch
+CURRENT_BRANCH=$(git branch --show-current)
+if [ -z "$CURRENT_BRANCH" ]; then
+    echo -e "${YELLOW}⚠️  Not on a branch, skipping dependency checks${NC}" >&2
+    exit 0
+fi
+
+# Find worker config for current branch
+WORKER_CONFIG=$(jq -r ".workers[] | select(.branch == \"$CURRENT_BRANCH\")" "$CONFIG_FILE")
+if [ -z "$WORKER_CONFIG" ] || [ "$WORKER_CONFIG" == "null" ]; then
+    # Not a worker branch, allow push
+    exit 0
+fi
+
+WORKER_ID=$(echo "$WORKER_CONFIG" | jq -r '.id')
+WORKER_ROLE=$(echo "$WORKER_CONFIG" | jq -r '.role // "worker"')
+DEPENDENCIES=$(echo "$WORKER_CONFIG" | jq -r '.dependencies[]?' 2>/dev/null)
+MERGES=$(echo "$WORKER_CONFIG" | jq -r '.merges[]?' 2>/dev/null)
+
+echo -e "${GREEN}🔍 Czarina Pre-Push Validation${NC}" >&2
+echo -e "   Worker: $WORKER_ID" >&2
+echo -e "   Branch: $CURRENT_BRANCH" >&2
+echo -e "   Role: $WORKER_ROLE" >&2
+
+# Check if this is an integration worker
+if [ "$WORKER_ROLE" == "integration" ]; then
+    echo -e "\n${YELLOW}📋 Integration Worker Validation${NC}" >&2
+
+    # Integration workers must merge their dependency branches
+    if [ -n "$MERGES" ]; then
+        echo -e "   Required merges:" >&2
+
+        MERGE_FAILURES=0
+        for dep_worker in $MERGES; do
+            # Find the dependency worker's branch
+            DEP_BRANCH=$(jq -r ".workers[] | select(.id == \"$dep_worker\") | .branch" "$CONFIG_FILE")
+
+            if [ -z "$DEP_BRANCH" ] || [ "$DEP_BRANCH" == "null" ]; then
+                echo -e "   ${RED}❌ $dep_worker - branch not found in config${NC}" >&2
+                MERGE_FAILURES=$((MERGE_FAILURES + 1))
+                continue
+            fi
+
+            # Check if dependency branch is merged into current branch
+            # Use merge-base to check if dep branch is ancestor of current branch
+            cd "$PROJECT_ROOT"
+            if git merge-base --is-ancestor "$DEP_BRANCH" "$CURRENT_BRANCH" 2>/dev/null; then
+                echo -e "   ${GREEN}✅ $dep_worker ($DEP_BRANCH)${NC}" >&2
+            else
+                echo -e "   ${RED}❌ $dep_worker ($DEP_BRANCH) - NOT MERGED${NC}" >&2
+                MERGE_FAILURES=$((MERGE_FAILURES + 1))
+            fi
+        done
+
+        if [ $MERGE_FAILURES -gt 0 ]; then
+            echo "" >&2
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
+            echo -e "${RED}❌ PUSH BLOCKED: Missing dependency merges${NC}" >&2
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
+            echo "" >&2
+            echo -e "${YELLOW}As an integration worker, you must merge dependency branches before pushing.${NC}" >&2
+            echo "" >&2
+            echo -e "${YELLOW}Required actions:${NC}" >&2
+            for dep_worker in $MERGES; do
+                DEP_BRANCH=$(jq -r ".workers[] | select(.id == \"$dep_worker\") | .branch" "$CONFIG_FILE")
+                if ! git merge-base --is-ancestor "$DEP_BRANCH" "$CURRENT_BRANCH" 2>/dev/null; then
+                    echo -e "   ${YELLOW}1. Merge $dep_worker branch:${NC}" >&2
+                    echo -e "      ${YELLOW}git merge $DEP_BRANCH${NC}" >&2
+                fi
+            done
+            echo -e "   ${YELLOW}2. Resolve any conflicts${NC}" >&2
+            echo -e "   ${YELLOW}3. Try pushing again${NC}" >&2
+            echo "" >&2
+            echo -e "${YELLOW}💡 Tip: Review integration summary from dependency workers before merging${NC}" >&2
+            echo "" >&2
+            exit 1
+        fi
+
+        echo -e "\n${GREEN}✅ All required branches merged${NC}" >&2
+    else
+        echo -e "   ${YELLOW}⚠️  No 'merges' specified in config for integration worker${NC}" >&2
+        echo -e "   ${YELLOW}   Integration workers should list branches to merge${NC}" >&2
+    fi
+fi
+
+# Check basic dependencies (not necessarily merged, but should exist)
+if [ -n "$DEPENDENCIES" ]; then
+    echo -e "\n${YELLOW}📦 Dependency Check${NC}" >&2
+
+    MISSING_DEPS=0
+    for dep_worker in $DEPENDENCIES; do
+        # Find the dependency worker's branch
+        DEP_BRANCH=$(jq -r ".workers[] | select(.id == \"$dep_worker\") | .branch" "$CONFIG_FILE")
+
+        if [ -z "$DEP_BRANCH" ] || [ "$DEP_BRANCH" == "null" ]; then
+            echo -e "   ${RED}❌ $dep_worker - not found in config${NC}" >&2
+            MISSING_DEPS=$((MISSING_DEPS + 1))
+            continue
+        fi
+
+        # Check if dependency branch exists (locally or remotely)
+        cd "$PROJECT_ROOT"
+        if git show-ref --verify --quiet "refs/heads/$DEP_BRANCH" || \
+           git show-ref --verify --quiet "refs/remotes/origin/$DEP_BRANCH"; then
+            echo -e "   ${GREEN}✅ $dep_worker ($DEP_BRANCH) exists${NC}" >&2
+        else
+            echo -e "   ${YELLOW}⚠️  $dep_worker ($DEP_BRANCH) - branch doesn't exist yet${NC}" >&2
+            echo -e "      ${YELLOW}This is OK if dependency hasn't started work${NC}" >&2
+        fi
+    done
+fi
+
+echo -e "\n${GREEN}✅ Pre-push validation passed${NC}" >&2
+echo "" >&2
+
+exit 0

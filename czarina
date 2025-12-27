@@ -29,6 +29,8 @@ Usage:
     czarina hopper pull <file> --to-phase        - Pull item into phase
     czarina hopper defer <file>                  - Defer item to backlog
     czarina hopper assign <worker> <file>        - Assign to worker
+    czarina deps check [worker-id]               - Check dependency status for workers
+    czarina deps validate <worker-id>            - Validate dependencies ready for worker
     czarina patterns update                      - Update pattern library
     czarina patterns version                     - Show pattern version
     czarina patterns pending                     - List patterns ready to contribute
@@ -1041,6 +1043,183 @@ def cmd_patterns_contribute():
     print("  3. Follow guide to submit upstream")
 
 
+def cmd_deps_check(worker_id=None):
+    """Check dependency status for a worker or all workers"""
+    czarina_dir, project_root = get_project_context()
+
+    config_file = czarina_dir / "config.json"
+    with open(config_file) as f:
+        config = json.load(f)
+
+    workers = config["workers"]
+
+    if worker_id:
+        # Check specific worker
+        worker = next((w for w in workers if w["id"] == worker_id), None)
+        if not worker:
+            print(f"❌ Worker not found: {worker_id}")
+            sys.exit(1)
+        workers_to_check = [worker]
+    else:
+        # Check all workers
+        workers_to_check = workers
+
+    print("🔍 Dependency Check")
+    print("=" * 60)
+    print()
+
+    os.chdir(project_root)
+
+    for worker in workers_to_check:
+        wid = worker["id"]
+        branch = worker.get("branch", "")
+        role = worker.get("role", "worker")
+        deps = worker.get("dependencies", [])
+        merges = worker.get("merges", [])
+
+        print(f"📋 Worker: {wid}")
+        print(f"   Branch: {branch}")
+        print(f"   Role: {role}")
+
+        if not deps and not merges:
+            print(f"   Dependencies: None")
+            print()
+            continue
+
+        # Check dependencies
+        if deps:
+            print(f"   Dependencies:")
+            for dep_id in deps:
+                dep_worker = next((w for w in workers if w["id"] == dep_id), None)
+                if not dep_worker:
+                    print(f"      ❌ {dep_id} - not found in config")
+                    continue
+
+                dep_branch = dep_worker.get("branch", "")
+                # Check if branch exists
+                result = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{dep_branch}"],
+                    capture_output=True
+                )
+                local_exists = result.returncode == 0
+
+                result = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{dep_branch}"],
+                    capture_output=True
+                )
+                remote_exists = result.returncode == 0
+
+                if remote_exists or local_exists:
+                    location = []
+                    if local_exists:
+                        location.append("local")
+                    if remote_exists:
+                        location.append("remote")
+                    print(f"      ✅ {dep_id} ({dep_branch}) - {', '.join(location)}")
+                else:
+                    print(f"      ⚠️  {dep_id} ({dep_branch}) - not started yet")
+
+        # Check merges (for integration workers)
+        if merges:
+            print(f"   Required Merges:")
+            for merge_id in merges:
+                merge_worker = next((w for w in workers if w["id"] == merge_id), None)
+                if not merge_worker:
+                    print(f"      ❌ {merge_id} - not found in config")
+                    continue
+
+                merge_branch = merge_worker.get("branch", "")
+
+                # Check if branch exists
+                result = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{merge_branch}"],
+                    capture_output=True
+                )
+                branch_exists = result.returncode == 0
+
+                if not branch_exists:
+                    print(f"      ⚠️  {merge_id} ({merge_branch}) - not pushed yet")
+                    continue
+
+                # Check if merged into current worker branch
+                if not branch:
+                    print(f"      ⚠️  {merge_id} - can't check (no branch specified)")
+                    continue
+
+                # Check if merge_branch is ancestor of worker branch
+                result = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", merge_branch, branch],
+                    capture_output=True
+                )
+                is_merged = result.returncode == 0
+
+                if is_merged:
+                    print(f"      ✅ {merge_id} ({merge_branch}) - MERGED")
+                else:
+                    print(f"      ❌ {merge_id} ({merge_branch}) - NOT MERGED")
+
+        print()
+
+    print("💡 Tip: Integration workers must merge all branches in 'merges' before pushing")
+    print("   The pre-push hook will enforce this automatically")
+
+
+def cmd_deps_validate(worker_id):
+    """Validate that a worker's dependencies are ready for their work"""
+    czarina_dir, project_root = get_project_context()
+
+    config_file = czarina_dir / "config.json"
+    with open(config_file) as f:
+        config = json.load(f)
+
+    worker = next((w for w in config["workers"] if w["id"] == worker_id), None)
+    if not worker:
+        print(f"❌ Worker not found: {worker_id}")
+        sys.exit(1)
+
+    deps = worker.get("dependencies", [])
+    merges = worker.get("merges", [])
+
+    if not deps and not merges:
+        print(f"✅ Worker '{worker_id}' has no dependencies")
+        return
+
+    print(f"🔍 Validating dependencies for: {worker_id}")
+    print()
+
+    os.chdir(project_root)
+
+    all_ready = True
+
+    # Check if dependencies have pushed their work
+    for dep_id in deps:
+        dep_worker = next((w for w in config["workers"] if w["id"] == dep_id), None)
+        if not dep_worker:
+            print(f"❌ Dependency '{dep_id}' not found in config")
+            all_ready = False
+            continue
+
+        dep_branch = dep_worker.get("branch", "")
+        result = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{dep_branch}"],
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            print(f"✅ {dep_id} - work available on remote")
+        else:
+            print(f"❌ {dep_id} - not pushed to remote yet")
+            all_ready = False
+
+    print()
+
+    if all_ready:
+        print(f"✅ All dependencies ready for '{worker_id}' to proceed")
+    else:
+        print(f"⚠️  Some dependencies not ready yet")
+        print(f"   Worker '{worker_id}' should wait for dependencies to complete")
+
+
 def cmd_analyze(plan_file, output_file=None, auto_init=False, interactive=False):
     """
     Analyze implementation plan and suggest orchestration setup
@@ -1299,6 +1478,24 @@ def main():
         else:
             print(f"❌ Unknown patterns subcommand: {subcommand}")
             print("   Valid: update, version, pending, contribute")
+            sys.exit(1)
+    elif command == "deps":
+        if len(sys.argv) < 3:
+            print("❌ Usage: czarina deps <check|validate> [worker-id]")
+            sys.exit(1)
+        subcommand = sys.argv[2]
+        if subcommand == "check":
+            worker_id = sys.argv[3] if len(sys.argv) > 3 else None
+            cmd_deps_check(worker_id)
+        elif subcommand == "validate":
+            if len(sys.argv) < 4:
+                print("❌ Usage: czarina deps validate <worker-id>")
+                sys.exit(1)
+            worker_id = sys.argv[3]
+            cmd_deps_validate(worker_id)
+        else:
+            print(f"❌ Unknown deps subcommand: {subcommand}")
+            print("   Valid: check, validate")
             sys.exit(1)
     elif command in ["version", "-v", "--version"]:
         print(f"Czarina v{CZARINA_VERSION}")
