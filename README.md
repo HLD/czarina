@@ -4,7 +4,7 @@
 
 [![Production Ready](https://img.shields.io/badge/status-production%20ready-green)]() [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Czarina enables autonomous teams of AI agents (Claude Code, Aider, Cursor, etc.) to collaborate on software development with 90% autonomy and 3-4x speedup.
+Czarina enables autonomous teams of AI agents (Claude Code, Aider, Cursor, Kilocode, etc.) to collaborate on software development with 90% autonomy and 3-4x speedup.
 
 ---
 
@@ -92,7 +92,7 @@ czarina daemon start
 
 ## 🌟 Key Features
 
-- 🤖 **Agent-Agnostic** - Works with 8+ AI coding assistants (Claude Code, Aider, Cursor, Windsurf, etc.)
+- 🤖 **Agent-Agnostic** - Works with 9+ AI coding assistants (Claude Code, Aider, Cursor, Kilocode, Windsurf, etc.)
 - ⚡ **90% Autonomy** - Daemon system reduces manual intervention from 100% to ~10%
 - 🎯 **Embedded** - `.czarina/` lives in your project (like `.git/`)
 - 🌳 **Git Worktrees** - Each worker gets isolated workspace for true parallelism
@@ -374,7 +374,7 @@ czarina-orchestrator/
 ## 🌟 Status
 
 **Production Ready** ✅
-- Multi-agent orchestration (8+ agents)
+- Multi-agent orchestration (9+ agents)
 - Autonomous daemon (90% autonomy)
 - Git workflow automation
 - Real-world tested (10 workers)

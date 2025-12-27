@@ -69,6 +69,12 @@ python3 agents/profile-loader.py summary cursor
 - **Usage:** Reference worker files with `@` or open directly
 - **Profile:** [windsurf.json](profiles/windsurf.json)
 
+### Kilocode
+- **Type:** CLI
+- **Best for:** Fully autonomous execution with auto-approval, CLI workflows
+- **Usage:** `kilocode --auto --yolo --workspace {path} '{prompt}'`
+- **Profile:** [kilocode.json](profiles/kilocode.json)
+
 ## Agent Profile Schema
 
 Each agent profile is a JSON file that defines:
@@ -316,9 +322,10 @@ Expected output:
 ✅ claude-code
 ✅ copilot
 ✅ cursor
+✅ kilocode
 ✅ windsurf
 
-✅ All 5 profiles are valid
+✅ All 6 profiles are valid
 ```
 
 ### Common Validation Errors

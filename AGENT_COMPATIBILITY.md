@@ -12,6 +12,7 @@ Czarina works with **any AI coding assistant** that can read files and execute g
 | **Cursor** | ✅ Native | ✅ Native | ⚠️ Manual | ✅ Works | **95%** | Use @ to reference files |
 | **Windsurf** | ✅ Native | ✅ Native | ⚠️ Manual | ✅ Works | **95%** | Similar to Cursor |
 | **Aider** | ✅ Native | ✅ Native | ✅ CLI | ✅ Works | **98%** | Excellent CLI support |
+| **Kilocode** | ✅ Native | ✅ Native | ✅ Auto | ✅ Works | **95%** | Autonomous with auto-approval |
 | **ChatGPT Code** | ✅ Native | ⚠️ Limited | ⚠️ Manual | ✅ Works | **85%** | Git via code interpreter |
 | **Codeium** | ✅ Native | ✅ Native | ⚠️ Manual | ✅ Works | **95%** | Works in supported IDEs |
 | **OpenAI o1** | ✅ Native | ⚠️ Limited | ⚠️ Manual | ✅ Works | **85%** | Limited shell access |
@@ -138,6 +139,33 @@ Read the file czarina-<projectname>/workers/engineer-1.md in this repository and
 - Limited persistent git integration
 - Better for analysis than long-running development
 - May need to copy/paste worker prompts
+
+---
+
+### Kilocode
+
+**Setup:** Install kilocode CLI
+
+**Usage:**
+```bash
+# Launch with autonomous mode and auto-approval
+kilocode --auto --yolo --workspace /path/to/workspace "Read WORKER_IDENTITY.md and begin tasks"
+
+# Or use czarina launcher (auto-configured)
+czarina launch  # If worker config specifies "agent": "kilocode"
+```
+
+**Discovery:** Prompt-based with auto-approval
+
+**Best For:** Fully autonomous execution, CLI workflows, cost-effective Claude alternative
+
+**Tips:**
+- `--auto` enables autonomous mode (non-interactive)
+- `--yolo` auto-approves all tool permissions
+- `--workspace` sets the working directory
+- Supports multiple AI providers (OpenAI, Anthropic, etc.)
+- `--json` mode for programmatic control
+- `--parallel` for parallel mode with automatic branching
 
 ---
 
@@ -274,7 +302,8 @@ You can mix agents on the same project! Each worker can use their preferred tool
 |----------|-------------------|-----|
 | **Mobile/Remote** | Claude Code | Web access, works on tablets/phones |
 | **Desktop IDE** | Cursor, Windsurf | Full IDE experience, debugging tools |
-| **Terminal Workflow** | Aider | CLI-native, automation friendly |
+| **Terminal Workflow** | Aider, Kilocode | CLI-native, automation friendly |
+| **Fully Autonomous** | Kilocode, Windsurf | Auto-approval, autonomous mode |
 | **GitHub Teams** | GitHub Copilot | Native GitHub integration |
 | **Budget Conscious** | Codeium | Free tier available |
 | **Quick Prototypes** | ChatGPT Code | Fast iteration, analysis tools |

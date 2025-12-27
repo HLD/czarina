@@ -1,0 +1,84 @@
+{
+  "id": "kilocode",
+  "name": "Kilocode",
+  "type": "cli",
+  "vendor": "Kilocode AI",
+  "website": "https://kilocode.ai",
+  "discovery": {
+    "pattern": "Command line prompt",
+    "instruction": "Run: kilocode --auto --yolo --workspace {workspace_path} '{prompt}'",
+    "supports_context_files": true
+  },
+  "capabilities": {
+    "file_reading": "native",
+    "file_writing": "native",
+    "git_support": "native",
+    "pr_creation": "cli",
+    "terminal_access": true,
+    "multi_file_edit": true,
+    "search": "native",
+    "autonomous_mode": true,
+    "auto_approval": true
+  },
+  "launch": {
+    "command": "kilocode",
+    "args": ["--auto", "--yolo", "--workspace", "{workspace_path}", "{prompt}"],
+    "requires_install": true,
+    "install_url": "https://kilocode.ai"
+  },
+  "documentation": {
+    "getting_started": "Kilocode is a CLI-based autonomous AI coding assistant with built-in auto-approval and autonomous mode. Launch Kilocode with --auto for non-interactive operation and --yolo to auto-approve all tool permissions. Perfect for fully automated workflows.",
+    "tips": [
+      "Use --auto flag for autonomous mode (non-interactive operation)",
+      "Use --yolo flag to auto-approve all tool permissions",
+      "Use --workspace to set the working directory",
+      "Kilocode supports multiple AI providers (OpenAI, Anthropic, etc.)",
+      "Use --json for JSON I/O mode for programmatic control",
+      "Use --parallel for parallel mode with automatic branching",
+      "The --timeout flag limits autonomous mode execution time",
+      "Kilocode automatically handles git operations without prompting"
+    ],
+    "limitations": [
+      "CLI-only interface - no GUI",
+      "Requires API keys for AI models (OpenAI, Anthropic, etc.)",
+      "Best for developers comfortable with terminal workflows",
+      "PR creation requires gh CLI",
+      "Autonomous mode requires careful prompt design"
+    ],
+    "examples": [
+      {
+        "title": "Start autonomous worker",
+        "description": "Launch Kilocode in autonomous mode with auto-approval",
+        "command": "kilocode --auto --yolo --workspace .czarina/worktrees/worker1 'Read WORKER_IDENTITY.md and begin tasks'"
+      },
+      {
+        "title": "Use with timeout",
+        "description": "Limit autonomous execution time",
+        "command": "kilocode --auto --yolo --timeout 3600 --workspace . 'Complete task within 1 hour'"
+      },
+      {
+        "title": "JSON output mode",
+        "description": "Get machine-readable output",
+        "command": "kilocode --auto --yolo --json --workspace . 'Write hello.py'"
+      },
+      {
+        "title": "Continue previous session",
+        "description": "Resume the last conversation",
+        "command": "kilocode --auto --yolo --continue --workspace ."
+      }
+    ]
+  },
+  "config": {
+    "prompt_style": "markdown",
+    "max_context_files": 50,
+    "prefers_single_file_prompts": false,
+    "supports_autonomous_mode": true,
+    "supports_auto_approval": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2025-12-27",
+    "tested_with": "0.18.0",
+    "compatibility": ">=0.18.0"
+  }
+}
