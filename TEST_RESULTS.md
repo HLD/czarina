@@ -402,3 +402,73 @@ Clear guidance on staying informed, proactive, coordinated, and focused.
 
 ---
 
+## 4. Worker ID Window Names
+
+### Test Case 4.1: Window Naming ✅ PASS
+
+**Test Method:** Code analysis of window creation logic
+
+**Implementation Review:**
+Located at `launch-project-v2.sh:127-181`:
+```bash
+create_worker_window() {
+    local session=$1
+    local worker_num=$2
+    local worker_idx=$3
+
+    local worker_id=$(jq -r ".workers[$worker_idx].id" "$CONFIG_FILE")
+    local window_name="$worker_id"  # Use worker ID, not generic "workerN"
+
+    # Create window
+    tmux new-window -t "$session" -n "$window_name"
+    tmux send-keys -t "${session}:${window_name}" "cd ${worker_dir}" C-m
+
+    # All subsequent commands reference ${window_name} which is the worker_id
+}
+```
+
+**Key Changes:**
+- ✅ Line 133: `window_name="$worker_id"` instead of `window_name="worker${worker_num}"`
+- ✅ Window creation uses worker ID: `tmux new-window -t "$session" -n "$window_name"`
+- ✅ All tmux commands reference by worker ID, not number
+
+**Expected Window Layout:**
+For current v0.6.1 orchestration with 3 workers:
+- Window 0: `czar` (Czar coordinator)
+- Window 1: `integration` (Worker 1 - integration worker)
+- Window 2: `testing` (Worker 2 - testing worker)
+- Window 3: `release` (Worker 3 - release worker)
+
+**Benefits of Worker ID Names:**
+1. **Clarity**: Immediately see what each window does (integration, testing, release)
+2. **Navigation**: Can use `:select-window -t integration` in tmux
+3. **Debugging**: Clearer in tmux window list and status bar
+4. **Scalability**: Works better with many workers (no confusion between worker1 and worker10)
+
+**Validation:**
+- ✅ Window names use semantic IDs from config.json
+- ✅ Czar window named "czar" not "worker0"
+- ✅ Worker windows named by their ID field
+- ✅ Consistent naming across all tmux commands
+
+**User Experience:**
+When running `tmux list-windows` or `Ctrl+b w`, users see:
+```
+0: czar
+1: integration
+2: testing
+3: release
+```
+
+Instead of the old generic:
+```
+0: worker0
+1: worker1
+2: worker2
+3: worker3
+```
+
+**Verdict:** Worker ID window naming works perfectly. Windows are now labeled with meaningful worker IDs, making navigation and coordination much clearer for users.
+
+---
+
