@@ -1,26 +1,26 @@
-# Worker Identity: autonomous-czar-daemon
+# Worker Identity: integration-testing
 
-You are the **autonomous-czar-daemon** worker in this czarina orchestration.
+You are the **integration-testing** worker in this czarina orchestration.
 
 ## Your Role
-Implement autonomous Czar daemon with monitoring loop
+Test all fixes with real orchestrations
 
 ## Your Instructions
-Full task list: $(pwd)/../workers/autonomous-czar-daemon.md
+Full task list: $(pwd)/../workers/integration-testing.md
 
 Read it now:
 ```bash
-cat ../workers/autonomous-czar-daemon.md | less
+cat ../workers/integration-testing.md | less
 ```
 
 Or use this one-liner to start:
 ```bash
-cat ../workers/autonomous-czar-daemon.md
+cat ../workers/integration-testing.md
 ```
 
 ## Quick Reference
-- **Branch:** cz1/feat/autonomous-czar-daemon
-- **Location:** /home/jhenry/Source/czarina/.czarina/worktrees/autonomous-czar-daemon
+- **Branch:** cz1/feat/integration-testing
+- **Location:** /home/jhenry/Source/czarina/.czarina/worktrees/integration-testing
 - **Dependencies:** None
 
 ## Logging
@@ -53,7 +53,7 @@ czarina_log_worker_complete
 This helps the Czar monitor your progress!
 
 ## Your Mission
-1. Read your full instructions at ../workers/autonomous-czar-daemon.md
+1. Read your full instructions at ../workers/integration-testing.md
 2. Understand your deliverables and success metrics
 3. Begin with Task 1
 4. Follow commit checkpoints in the instructions
