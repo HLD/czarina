@@ -10,6 +10,8 @@ Usage:
     czarina analyze <plan-file> --interactive    - Interactive mode (works with any AI agent!)
     czarina analyze <plan-file> --init           - Analyze and initialize project
     czarina analyze <plan-file> --output file    - Save analysis to file
+    czarina analyze <plan-file> --go             - Automated: parse plan, generate config, create workers
+    czarina analyze <plan-file> --dry-run        - Preview what --go would create (no files written)
     czarina init [project-name]                  - Initialize orchestration in current dir
     czarina init --plan <plan.md>                - Initialize from implementation plan (launches agent)
     czarina init --from-config <config.json>     - Initialize from pre-made config file
@@ -1433,11 +1435,267 @@ def cmd_deps_validate(worker_id):
         print(f"   Worker '{worker_id}' should wait for dependencies to complete")
 
 
-def cmd_analyze(plan_file, output_file=None, auto_init=False, interactive=False):
+def parse_plan_metadata(content):
+    """Extract project metadata from plan markdown"""
+    import re
+
+    metadata = {
+        "name": None,
+        "version": None,
+        "description": None,
+        "phase": 1
+    }
+
+    # Extract version from title (e.g., "# Czarina v0.7.1 Implementation Plan")
+    version_match = re.search(r'v(\d+\.\d+\.\d+)', content[:500])
+    if version_match:
+        metadata["version"] = version_match.group(1)
+
+    # Extract project name from title
+    title_match = re.search(r'^#\s+(.+?)(?:\s+Implementation|\s+Integration)?\s+Plan', content, re.MULTILINE)
+    if title_match:
+        name = title_match.group(1).strip()
+        # Clean up version from name if present
+        name = re.sub(r'\s+v\d+\.\d+\.\d+', '', name)
+        metadata["name"] = name
+
+    # Extract description from headers
+    desc_patterns = [
+        r'##\s+Executive Summary\s+\*\*Objective:\*\*\s+(.+?)(?:\n|$)',
+        r'\*\*Objective:\*\*\s+(.+?)(?:\n|$)',
+        r'##\s+Mission\s+(.+?)(?:\n|$)'
+    ]
+
+    for pattern in desc_patterns:
+        desc_match = re.search(pattern, content, re.MULTILINE)
+        if desc_match:
+            metadata["description"] = desc_match.group(1).strip()
+            break
+
+    return metadata
+
+
+def parse_worker_from_section(section_text, worker_num):
+    """Parse a worker definition from markdown section"""
+    import re
+
+    worker = {
+        "id": None,
+        "role": "code",
+        "agent": "claude",
+        "description": "",
+        "dependencies": [],
+        "mission": "",
+        "first_action": "",
+        "tasks": []
+    }
+
+    # Extract worker ID from header (support both ### and ####)
+    # e.g., "### Worker 1: `worker-onboarding-fix`" or "#### Worker 5: `config-schema`"
+    id_match = re.search(r'####?\s+Worker\s+\d+:\s+`?([a-z0-9-]+)`?', section_text)
+    if id_match:
+        worker["id"] = id_match.group(1)
+
+    # Extract role (supports both **Role:** and - **Role:**)
+    role_match = re.search(r'[-\*]*\s*\*\*Role:\*\*\s+(\w+)', section_text, re.IGNORECASE)
+    if role_match:
+        worker["role"] = role_match.group(1).lower()
+
+    # Extract agent (supports both formats)
+    agent_match = re.search(r'[-\*]*\s*\*\*Agent:\*\*\s+(.+?)(?:\n|$)', section_text)
+    if agent_match:
+        agent = agent_match.group(1).strip()
+        # Normalize agent names
+        if 'claude' in agent.lower():
+            worker["agent"] = "claude"
+        else:
+            worker["agent"] = agent.lower()
+
+    # Extract dependencies (supports both formats)
+    deps_match = re.search(r'[-\*]*\s*\*\*Dependencies:\*\*\s+(.+?)(?:\n|$)', section_text)
+    if deps_match:
+        deps_text = deps_match.group(1).strip()
+        # Check if dependencies text starts with "None" (case insensitive)
+        if not deps_text.lower().startswith("none"):
+            # Parse dependencies (could be comma-separated or list)
+            worker["dependencies"] = [d.strip() for d in re.split(r'[,;]', deps_text) if d.strip()]
+
+    # Extract mission
+    mission_match = re.search(r'\*\*Mission:\*\*\s+(.+?)(?:\n\n|\*\*)', section_text, re.DOTALL)
+    if mission_match:
+        worker["mission"] = mission_match.group(1).strip()
+
+    # Extract description (often same as mission, or from Mission header)
+    desc_match = re.search(r'\*\*Description:\*\*\s+(.+?)(?:\n|$)', section_text)
+    if desc_match:
+        worker["description"] = desc_match.group(1).strip()
+    elif worker["mission"]:
+        # Use first line of mission as description
+        worker["description"] = worker["mission"].split('\n')[0][:100]
+
+    # Extract first action
+    first_action_match = re.search(r'\*\*First Action:\*\*\s+(.+?)(?:\n\n|---)', section_text, re.DOTALL)
+    if first_action_match:
+        worker["first_action"] = first_action_match.group(1).strip()
+
+    # Extract tasks - supports both numbered lists and bullet points
+    # Try numbered list first (1. 2. 3.)
+    tasks_match = re.search(r'[-\*]*\s*\*\*Tasks:\*\*\s*\n((?:\d+\..*?\n)+)', section_text, re.DOTALL)
+    if tasks_match:
+        tasks_text = tasks_match.group(1)
+        worker["tasks"] = re.findall(r'\d+\.\s+(.+)', tasks_text)
+    else:
+        # Try bullet point format (- task1  - task2)
+        # Match until we hit another ** field or end of section
+        tasks_match = re.search(r'[-\*]*\s*\*\*Tasks:\*\*\s*\n((?:\s*-\s+(?!\*\*).*?\n)+)', section_text, re.DOTALL)
+        if tasks_match:
+            tasks_text = tasks_match.group(1)
+            # Filter out lines that start with **
+            worker["tasks"] = [t for t in re.findall(r'-\s+(.+)', tasks_text) if not t.startswith('**')]
+
+    # Extract deliverable if present
+    deliverable_match = re.search(r'[-\*]*\s*\*\*Deliverable[s]?:\*\*\s+(.+?)(?:\n|$)', section_text, re.IGNORECASE)
+    if deliverable_match:
+        deliverable = deliverable_match.group(1).strip()
+        # Use deliverable as description if we don't have one
+        if not worker["description"] and deliverable:
+            worker["description"] = deliverable
+
+    return worker
+
+
+def parse_plan(plan_file):
+    """Extract structured data from markdown plan"""
+
+    with open(plan_file, 'r') as f:
+        content = f.read()
+
+    # Extract metadata
+    metadata = parse_plan_metadata(content)
+
+    # Extract workers by finding "### Worker N:" or "#### Worker N:" sections
+    import re
+    worker_sections = re.split(r'(?=####?\s+Worker\s+\d+:)', content)
+
+    workers = []
+    for i, section in enumerate(worker_sections[1:], 1):  # Skip first split (header content)
+        worker = parse_worker_from_section(section, i)
+        if worker["id"]:
+            workers.append(worker)
+
+    return {
+        "project": metadata,
+        "workers": workers
+    }
+
+
+def generate_config_from_plan(plan_data, project_root):
+    """Generate config.json from parsed plan data"""
+
+    project = plan_data["project"]
+
+    # Generate project slug
+    slug = project["name"].lower() if project["name"] else "project"
+    slug = slug.replace(" ", "_").replace("-", "_").replace(".", "_")
+
+    config = {
+        "project": {
+            "name": project["name"] or "Unnamed Project",
+            "slug": slug,
+            "version": project["version"] or "0.1.0",
+            "phase": project.get("phase", 1),
+            "description": project.get("description", ""),
+            "repository": str(project_root),
+            "orchestration_dir": ".czarina"
+        },
+        "orchestration": {
+            "mode": "local",
+            "auto_push_branches": False
+        },
+        "omnibus_branch": f"cz{project.get('phase', 1)}/release/v{project['version'] or '0.1.0'}",
+        "workers": []
+    }
+
+    # Generate worker configs
+    for worker in plan_data["workers"]:
+        phase = project.get("phase", 1)
+        worker_config = {
+            "id": worker["id"],
+            "role": worker["role"],
+            "agent": worker["agent"],
+            "branch": f"cz{phase}/feat/{worker['id']}",
+            "description": worker["description"][:200],  # Limit length
+            "dependencies": worker["dependencies"]
+        }
+        config["workers"].append(worker_config)
+
+    # Add daemon config
+    config["daemon"] = {
+        "enabled": True,
+        "auto_approve": ["read", "write", "commit"]
+    }
+
+    return config
+
+
+def generate_worker_identity(worker, plan_context):
+    """Generate worker identity markdown from plan data"""
+
+    phase = plan_context["project"].get("phase", 1)
+
+    template = f"""# Worker Identity: {worker['id']}
+
+**Role:** {worker['role'].title()}
+**Agent:** {worker['agent'].title()}
+**Branch:** cz{phase}/feat/{worker['id']}
+**Phase:** {phase}
+**Dependencies:** {', '.join(worker['dependencies']) if worker['dependencies'] else 'None'}
+
+## Mission
+
+{worker['mission']}
+
+## 🚀 YOUR FIRST ACTION
+
+{worker['first_action'] if worker['first_action'] else 'Begin working on the objectives below.'}
+
+## Objectives
+
+"""
+
+    # Add tasks as objectives
+    if worker['tasks']:
+        for i, task in enumerate(worker['tasks'], 1):
+            template += f"{i}. {task}\n"
+    else:
+        template += "(No specific tasks defined - refer to mission)\n"
+
+    template += """
+## Deliverables
+
+"""
+
+    # Extract deliverables from the original section if available
+    template += f"Complete implementation of: {worker['description']}\n"
+
+    template += """
+## Success Criteria
+
+- [ ] All objectives completed
+- [ ] Code committed to branch
+- [ ] Tests passing (if applicable)
+- [ ] Documentation updated
+"""
+
+    return template
+
+
+def cmd_analyze(plan_file, output_file=None, auto_init=False, interactive=False, auto_go=False, dry_run=False):
     """
     Analyze implementation plan and suggest orchestration setup
 
-    Launches Claude Code to help create czarina orchestration from plan file.
+    With --go flag: Automatically parse plan and launch orchestration
+    Without --go flag: Launch Claude Code for interactive setup
     """
     orchestrator_dir = get_orchestrator_dir()
 
@@ -1458,6 +1716,103 @@ def cmd_analyze(plan_file, output_file=None, auto_init=False, interactive=False)
     current_dir = Path.cwd()
     czarina_dir = current_dir / ".czarina"
 
+    # Handle --go flag for automated setup
+    if auto_go or dry_run:
+        print("🤖 Automated orchestration setup mode")
+        if dry_run:
+            print("   (DRY RUN - no files will be written)")
+        print()
+
+        # Parse the plan
+        print("📖 Parsing plan file...")
+        try:
+            plan_data = parse_plan(plan_path)
+        except Exception as e:
+            print(f"❌ Error parsing plan: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+        print(f"   ✅ Found project: {plan_data['project']['name']}")
+        print(f"   ✅ Version: {plan_data['project']['version']}")
+        print(f"   ✅ Workers: {len(plan_data['workers'])}")
+        print()
+
+        # Validate parsed data
+        if not plan_data['workers']:
+            print("❌ Error: No workers found in plan file")
+            print("   Plans must include '### Worker N:' sections")
+            sys.exit(1)
+
+        # Show what will be created
+        print("📋 Orchestration structure:")
+        print()
+        print(f"   Project: {plan_data['project']['name']} v{plan_data['project']['version']}")
+        print(f"   Workers: {len(plan_data['workers'])}")
+        for worker in plan_data['workers']:
+            deps = f" (depends on: {', '.join(worker['dependencies'])})" if worker['dependencies'] else ""
+            print(f"     - {worker['id']} ({worker['role']}){deps}")
+        print()
+
+        if dry_run:
+            print("=" * 60)
+            print("DRY RUN COMPLETE - No files written")
+            print()
+            print("Generated config preview:")
+            config = generate_config_from_plan(plan_data, current_dir)
+            print(json.dumps(config, indent=2))
+            print()
+            print("To actually create files, run without --dry-run:")
+            print(f"  czarina analyze {plan_file} --go")
+            print("=" * 60)
+            return
+
+        # Create directory structure
+        if not czarina_dir.exists():
+            print("📁 Creating .czarina directory structure...")
+            czarina_dir.mkdir()
+            (czarina_dir / "workers").mkdir()
+            print("   ✅ Created .czarina/")
+            print("   ✅ Created .czarina/workers/")
+        else:
+            workers_dir = czarina_dir / "workers"
+            if not workers_dir.exists():
+                workers_dir.mkdir()
+                print("   ✅ Created .czarina/workers/")
+        print()
+
+        # Generate and write config.json
+        print("📝 Generating config.json...")
+        config = generate_config_from_plan(plan_data, current_dir)
+        config_path = czarina_dir / "config.json"
+
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"   ✅ Written to {config_path}")
+        print()
+
+        # Generate and write worker identity files
+        print("📝 Generating worker identities...")
+        for worker in plan_data['workers']:
+            worker_content = generate_worker_identity(worker, plan_data)
+            worker_path = czarina_dir / "workers" / f"{worker['id']}.md"
+
+            with open(worker_path, 'w') as f:
+                f.write(worker_content)
+            print(f"   ✅ Created {worker['id']}.md")
+        print()
+
+        print("=" * 60)
+        print("✅ Orchestration setup complete!")
+        print()
+        print("📋 Next step:")
+        print("   Launch the orchestration:")
+        print("      czarina launch")
+        print()
+        print("=" * 60)
+        return
+
+    # Original interactive mode (without --go)
     if not czarina_dir.exists():
         print("📁 Creating .czarina directory structure...")
         czarina_dir.mkdir()
@@ -1572,12 +1927,14 @@ def main():
 
     if command == "analyze":
         if len(sys.argv) < 3:
-            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--init] [--interactive]")
+            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--init] [--interactive] [--go] [--dry-run]")
             sys.exit(1)
         plan_file = sys.argv[2]
         output_file = None
         auto_init = False
         interactive = False
+        auto_go = False
+        dry_run = False
         # Parse optional flags
         for i in range(3, len(sys.argv)):
             if sys.argv[i] == "--output" and i + 1 < len(sys.argv):
@@ -1586,7 +1943,11 @@ def main():
                 auto_init = True
             elif sys.argv[i] == "--interactive":
                 interactive = True
-        cmd_analyze(plan_file, output_file, auto_init, interactive)
+            elif sys.argv[i] == "--go":
+                auto_go = True
+            elif sys.argv[i] == "--dry-run":
+                dry_run = True
+        cmd_analyze(plan_file, output_file, auto_init, interactive, auto_go, dry_run)
     elif command == "init":
         # Check for --from-config, --from-plan, and --force flags
         from_config = None
