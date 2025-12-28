@@ -1,84 +1,104 @@
 {
   "project": {
-    "name": "czarina",
-    "slug": "czarina-v0_6_0",
-    "repository": "/home/jhenry/Source/czarina",
-    "orchestration_dir": ".czarina-v0.6.0",
-    "version": "0.6.0",
+    "name": "czarina-v0.7.0",
+    "slug": "czarina-v0_7_0",
+    "version": "0.7.0",
     "phase": 1,
-    "omnibus_branch": "cz1/release/v0.6.0",
-    "description": "Czarina v0.6.0 - Autonomous Orchestration with Hopper System"
+    "description": "Memory System + Agent Rules Integration",
+    "repository": "/home/jhenry/Source/czarina",
+    "orchestration_dir": ".czarina"
   },
-  "hopper": {
-    "enabled": true,
-    "project_hopper": ".czarina/hopper",
-    "phase_hopper": ".czarina-v0.6.0/phase-hopper",
-    "czar_monitoring": {
-      "enabled": false,
-      "check_interval": 900
-    }
-  },
-  "workers": [
-    {
-      "id": "logging",
-      "agent": "claude",
-      "branch": "cz1/feat/logging",
-      "description": "Structured Logging Integration (E#16 + A2)",
-      "token_budget": 1000000,
-      "dependencies": [],
-      "planned_duration": "3 days"
-    },
-    {
-      "id": "phase-mgmt",
-      "agent": "claude",
-      "branch": "cz1/feat/phase-mgmt",
-      "description": "Phase Management & Branch Naming (E#13)",
-      "token_budget": 1500000,
-      "dependencies": [],
-      "planned_duration": "4 days"
-    },
-    {
-      "id": "hopper",
-      "agent": "claude",
-      "branch": "cz1/feat/hopper",
-      "description": "Two-Level Hopper System (E#14 + B3)",
-      "token_budget": 2000000,
-      "dependencies": [],
-      "planned_duration": "5 days"
-    },
-    {
-      "id": "autonomous-czar",
-      "agent": "claude",
-      "branch": "cz1/feat/autonomous-czar",
-      "description": "Autonomous Czar Loop (A3 + A4)",
-      "token_budget": 2000000,
-      "dependencies": ["logging", "hopper"],
-      "planned_duration": "5 days"
-    },
-    {
-      "id": "qa",
-      "agent": "claude",
-      "branch": "cz1/release/v0.6.0",
-      "description": "QA, Quick Wins, Integration & Release (E#15, E#17)",
-      "role": "integration",
-      "token_budget": 1500000,
-      "dependencies": ["logging", "phase-mgmt", "hopper", "autonomous-czar"],
-      "merges": ["logging", "phase-mgmt", "hopper", "autonomous-czar"],
-      "planned_duration": "3 days"
-    }
-  ],
   "orchestration": {
     "mode": "local",
-    "auto_push_branches": false,
-    "notes": "mode: 'local' (git worktrees) or 'github' (Claude Code Web). auto_push_branches only applies to github mode."
+    "auto_push_branches": false
   },
+  "omnibus_branch": "cz1/release/v0.7.0",
+  "workers": [
+    {
+      "id": "rules-integration",
+      "role": "code",
+      "agent": "claude",
+      "branch": "cz1/feat/rules-integration",
+      "description": "Integrate agent rules library into Czarina",
+      "dependencies": []
+    },
+    {
+      "id": "memory-core",
+      "role": "code",
+      "agent": "claude",
+      "branch": "cz1/feat/memory-core",
+      "description": "Implement memory file structure and basic I/O",
+      "dependencies": []
+    },
+    {
+      "id": "memory-search",
+      "role": "code",
+      "agent": "claude",
+      "branch": "cz1/feat/memory-search",
+      "description": "Build semantic search with vector embeddings",
+      "dependencies": []
+    },
+    {
+      "id": "cli-commands",
+      "role": "code",
+      "agent": "aider",
+      "branch": "cz1/feat/cli-commands",
+      "description": "Add czarina memory CLI commands",
+      "dependencies": []
+    },
+    {
+      "id": "config-schema",
+      "role": "code",
+      "agent": "claude",
+      "branch": "cz1/feat/config-schema",
+      "description": "Extend config.json schema for rules and memory",
+      "dependencies": ["rules-integration", "memory-core"]
+    },
+    {
+      "id": "launcher-enhancement",
+      "role": "code",
+      "agent": "claude",
+      "branch": "cz1/feat/launcher-enhancement",
+      "description": "Enhance agent launcher to load rules and memory",
+      "dependencies": ["config-schema", "memory-search", "rules-integration"]
+    },
+    {
+      "id": "integration",
+      "role": "qa",
+      "agent": "claude",
+      "branch": "cz1/feat/integration",
+      "description": "Merge all branches and perform E2E testing",
+      "dependencies": ["rules-integration", "memory-core", "memory-search", "cli-commands", "config-schema", "launcher-enhancement"],
+      "merges": ["rules-integration", "memory-core", "memory-search", "cli-commands", "config-schema", "launcher-enhancement"]
+    },
+    {
+      "id": "documentation",
+      "role": "documentation",
+      "agent": "claude",
+      "branch": "cz1/feat/documentation",
+      "description": "Create complete documentation and migration guide",
+      "dependencies": ["integration"]
+    },
+    {
+      "id": "release",
+      "role": "qa",
+      "agent": "claude",
+      "branch": "cz1/feat/release",
+      "description": "Final QA, tag v0.7.0, and publish release",
+      "dependencies": ["documentation", "integration"],
+      "merges": ["integration", "documentation"]
+    }
+  ],
   "daemon": {
     "enabled": true,
-    "auto_approve": [
-      "read",
-      "write",
-      "edit",
-      "commit"
-    ]
+    "auto_approve": ["read", "write", "commit"]
+  },
+  "memory": {
+    "enabled": false,
+    "note": "Will be implemented by this orchestration"
+  },
+  "agent_rules": {
+    "enabled": false,
+    "note": "Will be implemented by this orchestration"
   }
 }
