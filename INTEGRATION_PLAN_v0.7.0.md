@@ -17,7 +17,8 @@
 
 **Value Proposition:** First orchestrator that combines multi-agent coordination with institutional memory AND comprehensive knowledge base.
 
-**Timeline:** 3-4 weeks for complete implementation
+**Implementation Approach:** Czarina Orchestration (Dogfooding!)
+**Timeline:** 3-5 days for complete implementation
 **Complexity:** Medium
 **Impact:** Very High - Market differentiation
 
@@ -107,155 +108,283 @@ A worker debugging a database connection issue:
 
 ---
 
-## Implementation Strategy
+## Implementation Strategy: Czarina Orchestration
 
-### Option A: Sequential Implementation (Lower Risk)
+**Approach:** Use Czarina to build Czarina v0.7.0 (dogfooding!)
 
-**Phase 1:** Agent Rules Integration (2-3 weeks)
-- Week 1: Quick integration (symlink, docs)
-- Week 2: Automatic loading
-- Week 3: Templates + polish
+**Inspiration:** The agent-rules library was created by a 7-worker Czarina orchestration:
+- 69 files, 43K+ lines created
+- 100% worker success rate
+- 3-week project completed in 2 days
+- **Why not use the same approach for v0.7.0?**
 
-**Phase 2:** Memory System (1-2 weeks)
-- Week 1: Core implementation (MVP)
-- Week 2: Integration + testing
+### Orchestration Plan
 
-**Total:** 3-5 weeks
-**Risk:** Lower (one at a time)
-**Benefit:** Each enhancement independent
+**Session Name:** `czarina-v0.7.0`
+**Orchestration Mode:** `parallel_spike` (Phase 1) → `sequential_dependencies` (Phase 2)
+**Total Workers:** 9 workers across 2 phases
+**Estimated Duration:** 3-5 days
 
-### Option B: Parallel Implementation (Faster, Higher Risk)
+### Phase 1: Foundation (Parallel - Day 1-2)
 
-**Workstream 1:** Agent Rules (Developer A)
-**Workstream 2:** Memory System (Developer B)
-**Workstream 3:** Integration (Week 3-4, both devs)
+**4 workers working in parallel:**
 
-**Total:** 3-4 weeks
-**Risk:** Higher (coordination needed)
-**Benefit:** Faster delivery
+#### Worker 1: `rules-integration`
+- **Role:** Code
+- **Agent:** Claude Code (or Aider)
+- **Branch:** `feat/v0.7.0-rules-integration`
+- **Dependencies:** None
+- **Tasks:**
+  - Create symlink: `czarina-core/agent-rules -> ../agent-rules/agent-rules`
+  - Add to .gitignore
+  - Create `AGENT_RULES.md` documentation
+  - Update main README to mention agent rules
+  - Test manual access from Czarina
+- **Deliverable:** Agent rules accessible in Czarina
 
-### Option C: MVP-First (Recommended)
+#### Worker 2: `memory-core`
+- **Role:** Code
+- **Agent:** Claude Code (or Aider)
+- **Branch:** `feat/v0.7.0-memory-core`
+- **Dependencies:** None
+- **Tasks:**
+  - Design `memories.md` schema (based on spec)
+  - Implement basic file I/O in bash/python
+  - Create `.czarina/memories.md` template
+  - Manual extraction workflow
+  - Basic validation
+- **Deliverable:** Memory file structure working
 
-**Week 1: Quick Wins**
-- Day 1-2: Agent rules symlink + basic docs
-- Day 3-5: Memory MVP (basic structure, manual)
+#### Worker 3: `memory-search`
+- **Role:** Code
+- **Agent:** Claude Code
+- **Branch:** `feat/v0.7.0-memory-search`
+- **Dependencies:** None
+- **Tasks:**
+  - Choose embedding provider (OpenAI vs local)
+  - Implement vector indexing (JSON-based)
+  - Build search functionality
+  - Test query accuracy
+  - Document embedding strategy
+- **Deliverable:** Semantic search functional
 
-**Week 2: Core Features**
-- Day 1-3: Agent rules auto-loading
-- Day 4-5: Memory semantic search
+#### Worker 4: `cli-commands`
+- **Role:** Code
+- **Agent:** Aider (or Claude Code)
+- **Branch:** `feat/v0.7.0-cli-commands`
+- **Dependencies:** None
+- **Tasks:**
+  - Add `czarina memory query "<task>"`
+  - Add `czarina memory extract`
+  - Add `czarina memory rebuild`
+  - Add `czarina init --with-rules --with-memory`
+  - Update CLI help text
+- **Deliverable:** CLI commands working
 
-**Week 3: Integration**
-- Day 1-3: Combined worker context loading
-- Day 4-5: Testing with real orchestration
-
-**Week 4: Polish & Release**
-- Day 1-2: Documentation
-- Day 3-4: Examples + templates
-- Day 5: Release v0.7.0
-
-**Total:** 4 weeks
-**Risk:** Medium (validates early)
-**Benefit:** Iterative, user feedback early
-
-**Recommendation:** Option C (MVP-First)
-
----
-
-## Detailed Timeline (Option C)
-
-### Week 1: Foundation
-
-#### Days 1-2: Agent Rules Quick Integration
-- [ ] Create symlink: `czarina-core/agent-rules`
-- [ ] Write `AGENT_RULES.md` guide
-- [ ] Update main README
-- [ ] Add to documentation
-- [ ] Test manual access
-
-**Deliverable:** Agent rules accessible in Czarina
-
-#### Days 3-5: Memory System MVP
-- [ ] Design `memories.md` schema
-- [ ] Implement basic file I/O
-- [ ] Manual extraction workflow
-- [ ] Basic CLI commands
-- [ ] Documentation
-
-**Deliverable:** Manual memory system working
-
-**Week 1 Goal:** Both systems accessible, manual workflows defined
+**Phase 1 Duration:** 1-2 days (workers in parallel)
+**Phase 1 Outcome:** All 4 foundation components ready
 
 ---
 
-### Week 2: Automation
+### Phase 2: Integration (Sequential - Day 3-4)
 
-#### Days 1-2: Agent Rules Auto-Loading (Part 1)
-- [ ] Define role-to-rules mapping
-- [ ] Extend worker config schema
-- [ ] Implement rule selection logic
-- [ ] Create condensed quick-references
+**5 workers with dependencies:**
 
-#### Days 3-4: Memory Semantic Search
-- [ ] Choose embedding provider
-- [ ] Implement vector indexing
-- [ ] Build search functionality
-- [ ] Test query accuracy
+#### Worker 5: `config-schema`
+- **Role:** Code
+- **Agent:** Claude Code
+- **Branch:** `feat/v0.7.0-config-schema`
+- **Dependencies:** rules-integration, memory-core
+- **Tasks:**
+  - Extend config.json schema
+  - Add `rules` configuration section
+  - Add `memory` configuration section
+  - Add worker-level `role` field
+  - Update schema validation
+  - Migration for existing configs
+- **Deliverable:** Extended config schema
 
-#### Day 5: Integration Point 1
-- [ ] Combine rules + memory in worker context
-- [ ] Test with single worker
-- [ ] Measure context size
-- [ ] Refine loading logic
+#### Worker 6: `launcher-enhancement`
+- **Role:** Code
+- **Agent:** Claude Code
+- **Branch:** `feat/v0.7.0-launcher-enhancement`
+- **Dependencies:** config-schema, memory-search, rules-integration
+- **Tasks:**
+  - Modify `czarina-core/agent-launcher.sh`
+  - Implement role-to-rules mapping
+  - Load architectural core from memory
+  - Query relevant memories on worker start
+  - Inject rules into worker context
+  - Handle all 9 agent types
+  - Test context size management
+- **Deliverable:** Enhanced launcher with rules + memory
 
-**Week 2 Goal:** Both systems automated, working separately
+#### Worker 7: `integration`
+- **Role:** QA + Integration
+- **Agent:** Claude Code
+- **Branch:** `feat/v0.7.0-integration`
+- **Dependencies:** ALL previous workers
+- **Tasks:**
+  - Merge all feature branches
+  - Resolve conflicts
+  - End-to-end integration testing
+  - Test with real multi-worker orchestration
+  - Performance benchmarking
+  - Bug fixes
+- **Deliverable:** Fully integrated v0.7.0
+
+#### Worker 8: `documentation`
+- **Role:** Documentation
+- **Agent:** Claude Code
+- **Branch:** `feat/v0.7.0-documentation`
+- **Dependencies:** integration (for accuracy)
+- **Tasks:**
+  - Update all documentation
+  - Create migration guide from v0.6.2
+  - Write v0.7.0 release notes
+  - Create example `memories.md` files
+  - Update QUICK_START.md
+  - Create MEMORY_GUIDE.md
+  - Update CHANGELOG.md
+- **Deliverable:** Complete documentation
+
+#### Worker 9: `release`
+- **Role:** QA + Release
+- **Agent:** Claude Code (or Human)
+- **Branch:** `feat/v0.7.0-release`
+- **Dependencies:** documentation, integration
+- **Tasks:**
+  - Final testing (all features)
+  - Performance validation
+  - Security review
+  - Create git tag v0.7.0
+  - Update CZARINA_STATUS.md
+  - Prepare GitHub release
+  - Publish release
+- **Deliverable:** v0.7.0 released
+
+**Phase 2 Duration:** 2-3 days (sequential with some parallelism)
+**Phase 2 Outcome:** v0.7.0 complete, tested, documented, released
 
 ---
 
-### Week 3: Full Integration
+### Total Timeline
 
-#### Days 1-2: Agent Rules Auto-Loading (Part 2)
-- [ ] Modify agent launcher
-- [ ] Inject rules into worker context
-- [ ] Handle different agent types
-- [ ] Test with all 9 agents
+**Day 1-2:** Phase 1 (4 parallel workers)
+**Day 3-4:** Phase 2 (5 workers, some sequential)
+**Day 5:** Buffer/polish
 
-#### Days 3-4: Memory Session Integration
-- [ ] Session-start context loading
-- [ ] Session-end extraction prompts
-- [ ] File watcher for index rebuild
-- [ ] Czar memory aggregation
-
-#### Day 5: Combined Worker Launch
-- [ ] Worker gets: task + rules + memory
-- [ ] Test context size management
-- [ ] Validate relevance of loaded content
-- [ ] Optimize for performance
-
-**Week 3 Goal:** Fully integrated, working together
+**Total:** 3-5 days vs 3-4 weeks traditional development
+**Speedup:** 6-8x faster using Czarina orchestration!
 
 ---
 
-### Week 4: Polish & Release
+## Worker Orchestration Details
 
-#### Days 1-2: Documentation
-- [ ] Update all documentation
-- [ ] Create migration guide
-- [ ] Write v0.7.0 release notes
-- [ ] Example orchestrations
+### Czarina Configuration (config.json)
 
-#### Days 3-4: Examples & Templates
-- [ ] Example `memories.md` files
-- [ ] Worker templates using rules
-- [ ] End-to-end orchestration example
-- [ ] Video/demo (optional)
+```json
+{
+  "project": {
+    "name": "czarina-v0.7.0",
+    "slug": "czarina-v0-7-0",
+    "description": "Memory System + Agent Rules Integration"
+  },
+  "orchestration": {
+    "mode": "parallel_spike"
+  },
+  "workers": [
+    {
+      "id": "rules-integration",
+      "role": "code",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-rules-integration",
+      "dependencies": []
+    },
+    {
+      "id": "memory-core",
+      "role": "code",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-memory-core",
+      "dependencies": []
+    },
+    {
+      "id": "memory-search",
+      "role": "code",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-memory-search",
+      "dependencies": []
+    },
+    {
+      "id": "cli-commands",
+      "role": "code",
+      "agent": "aider",
+      "branch": "feat/v0.7.0-cli-commands",
+      "dependencies": []
+    },
+    {
+      "id": "config-schema",
+      "role": "code",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-config-schema",
+      "dependencies": ["rules-integration", "memory-core"]
+    },
+    {
+      "id": "launcher-enhancement",
+      "role": "code",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-launcher-enhancement",
+      "dependencies": ["config-schema", "memory-search", "rules-integration"]
+    },
+    {
+      "id": "integration",
+      "role": "qa",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-integration",
+      "dependencies": ["rules-integration", "memory-core", "memory-search", "cli-commands", "config-schema", "launcher-enhancement"]
+    },
+    {
+      "id": "documentation",
+      "role": "documentation",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-documentation",
+      "dependencies": ["integration"]
+    },
+    {
+      "id": "release",
+      "role": "qa",
+      "agent": "claude",
+      "branch": "feat/v0.7.0-release",
+      "dependencies": ["documentation", "integration"]
+    }
+  ]
+}
+```
 
-#### Day 5: Release Preparation
-- [ ] Final testing
-- [ ] Create git tag v0.7.0
-- [ ] Update CZARINA_STATUS.md
-- [ ] Publish release
+### Czar Responsibilities
 
-**Week 4 Goal:** v0.7.0 released, documented, demoed
+The **Czar** (human or autonomous) will:
+1. Launch Phase 1 workers (parallel)
+2. Monitor progress via dashboard
+3. Launch Phase 2 workers when Phase 1 complete
+4. Coordinate dependency merges
+5. Review integration worker output
+6. Approve release
+
+### Expected Outcomes by Phase
+
+**After Phase 1 (Day 1-2):**
+- ✅ Agent rules symlinked and documented
+- ✅ Memory file structure implemented
+- ✅ Semantic search working
+- ✅ CLI commands added
+
+**After Phase 2 (Day 3-4):**
+- ✅ Config schema extended
+- ✅ Launcher loads rules + memory
+- ✅ All components integrated
+- ✅ Documentation complete
+- ✅ v0.7.0 ready for release
 
 ---
 
@@ -445,45 +574,47 @@ czarina phase close {
 
 ## Success Metrics
 
-### Phase 1 (Week 1) - Foundation
-- [ ] Agent rules accessible in Czarina
-- [ ] Memory file structure created
-- [ ] Manual workflows documented
-- [ ] Basic CLI commands working
+### Phase 1 Success Criteria (Foundation Workers)
+- [ ] **rules-integration:** Agent rules symlinked, documented, accessible
+- [ ] **memory-core:** Memory file structure created, templates working
+- [ ] **memory-search:** Semantic search functional, accuracy > 70%
+- [ ] **cli-commands:** All 4 CLI commands working
 
-### Phase 2 (Week 2) - Automation
-- [ ] Rules auto-load by role
-- [ ] Memory semantic search functional
-- [ ] Context size < 20KB
-- [ ] Search accuracy > 70%
+### Phase 2 Success Criteria (Integration Workers)
+- [ ] **config-schema:** Extended schema, backward compatible
+- [ ] **launcher-enhancement:** Rules + memory loaded, all 9 agents supported
+- [ ] **integration:** All branches merged, tests passing, performance < 2s overhead
+- [ ] **documentation:** Complete docs, migration guide, examples
+- [ ] **release:** v0.7.0 tagged, published, status updated
 
-### Phase 3 (Week 3) - Integration
-- [ ] Workers receive both rules + memory
-- [ ] Full orchestration tested
-- [ ] Performance acceptable (<2s overhead)
-- [ ] Quality improvements measurable
+### Orchestration Success Indicators
 
-### Phase 4 (Week 4) - Release
-- [ ] Documentation complete
-- [ ] Examples provided
-- [ ] v0.7.0 tagged and released
-- [ ] User feedback positive
+**Process Metrics:**
+- ✅ All 9 workers complete successfully
+- ✅ No critical merge conflicts
+- ✅ Dependency coordination smooth
+- ✅ 3-5 day timeline met
+- ✅ Czar overhead minimal
 
-### Overall Success Indicators
+**Technical Metrics:**
+- Context loading < 2 seconds
+- Memory search accuracy > 70%
+- Context size < 20KB
+- All 9 agents supported
+- Backward compatibility maintained
 
-**Quantitative:**
+**Quality Metrics:**
 - Workers produce 30%+ fewer errors
 - Debugging time reduced by 40%+
 - Session-to-session repetition reduced 50%+
-- Context loading < 2 seconds
-- Memory search accuracy > 70%
-
-**Qualitative:**
-- Users report "workers feel smarter"
-- Less repetition observed
-- Better code quality
+- Better code quality observed
 - Reduced coordination overhead
-- Positive market reception
+
+**Market Impact:**
+- First orchestrator with memory
+- Unique market differentiation
+- Dogfooding proof (Czarina built by Czarina)
+- Positive user feedback
 
 ---
 
@@ -646,20 +777,36 @@ czarina init --with-memory --with-rules
 ### Immediate (Today)
 - [x] Create hopper enhancements (DONE)
 - [x] Create integration plan (DONE)
-- [ ] Review and approve plan
-- [ ] Assign ownership
+- [x] Revise plan to use Czarina orchestration (DONE)
+- [ ] Review and approve orchestration plan
+- [ ] Decide: Launch orchestration or refine plan
 
-### This Week
-- [ ] Set up development environment
-- [ ] Create feature branch: `feat/v0.7.0-memory-and-rules`
-- [ ] Begin Week 1 implementation
-- [ ] Daily standups to track progress
+### Launch Preparation (Day 0)
+- [ ] Create worker identity files in `.czarina/workers/`
+- [ ] Create initial config.json for czarina-v0.7.0
+- [ ] Initialize git branches for all 9 workers
+- [ ] Set up tmux session
+- [ ] Brief all workers via identity files
 
-### Ongoing
-- [ ] Weekly checkpoint meetings
-- [ ] User feedback collection
-- [ ] Documentation as we go
-- [ ] Testing continuously
+### Phase 1 Launch (Day 1)
+- [ ] Launch 4 parallel workers: rules-integration, memory-core, memory-search, cli-commands
+- [ ] Monitor progress via dashboard
+- [ ] Czar coordination as needed
+- [ ] Review deliverables at end of day
+
+### Phase 2 Launch (Day 2-3)
+- [ ] Launch config-schema (depends on Phase 1)
+- [ ] Launch launcher-enhancement (depends on config-schema)
+- [ ] Launch integration worker (depends on all previous)
+- [ ] Launch documentation worker
+- [ ] Launch release worker
+
+### Completion (Day 4-5)
+- [ ] Review all worker deliverables
+- [ ] Final integration testing
+- [ ] Publish v0.7.0
+- [ ] Update CZARINA_STATUS.md
+- [ ] Create orchestration closeout report
 
 ---
 
@@ -675,16 +822,25 @@ To: **Learning, knowledge-powered orchestration system**
 - Workers that apply proven patterns (rules)
 - Workers that get better over time (both!)
 
-**Timeline:** 4 weeks
+**Implementation Approach: Dogfooding at its finest**
+- Using Czarina to build Czarina v0.7.0
+- 9 workers, 2 phases, 3-5 days
+- 6-8x faster than traditional development
+- Proves Czarina's orchestration power
+
+**Timeline:** 3-5 days (vs 3-4 weeks traditional)
 **Complexity:** Medium
 **Impact:** Very High
 **Differentiation:** Unique in market
 
 **This positions Czarina as the most sophisticated multi-agent orchestration system available.**
 
+**Meta-Statement:** Just as the agent-rules library was created by Czarina orchestrating 7 workers (3-week project in 2 days), we'll use Czarina to build its own next version. **Czarina builds Czarina. 🐕**
+
 ---
 
-**Status:** Ready for approval and implementation
-**Owner:** TBD
+**Status:** Ready for orchestration launch
+**Implementation:** 9-worker Czarina orchestration
 **Target Release:** v0.7.0
 **Created:** 2025-12-27
+**Revised for Orchestration:** 2025-12-28
