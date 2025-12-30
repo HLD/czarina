@@ -2,11 +2,7 @@
 
 This document describes the configuration options available in `.czarina/config.json`.
 
-For migration from v0.6.2 to v0.7.0, see [MIGRATION_v0.7.0.md](MIGRATION_v0.7.0.md).
-
 ## Configuration Schema
-
-Full JSON Schema definition: `schema/config-schema.json`
 
 ### Project Section
 
@@ -18,58 +14,22 @@ Full JSON Schema definition: `schema/config-schema.json`
     "repository": "/path/to/repository",
     "orchestration_dir": ".czarina",
     "version": "1.0.0",
+    "phase": 1,
+    "omnibus_branch": "cz1/release/v1.0.0",
     "description": "Project description"
   }
 }
 ```
 
-### Agent Rules Section (v0.7.0+)
-
-Global configuration for agent rules system. **Optional** - if not specified, rules are disabled.
-
-```json
-{
-  "agent_rules": {
-    "library_path": ".czarina/agent-rules",
-    "mode": "auto",
-    "condensed": true
-  }
-}
-```
-
-**Agent Rules Properties:**
-- `library_path` (optional, default: ".czarina/agent-rules"): Path to agent rules library
-- `mode` (optional, default: "auto"): Rule loading mode
-  - `"auto"`: Automatically load rules based on worker role and context
-  - `"manual"`: Only load explicitly specified rules
-  - `"disabled"`: Disable rule loading
-- `condensed` (optional, default: true): Use condensed rule format for efficiency
-
-### Memory Section (v0.7.0+)
-
-Global configuration for memory system. **Optional** - if not specified, memory is disabled.
-
-```json
-{
-  "memory": {
-    "enabled": true,
-    "embedding_provider": "openai",
-    "embedding_model": "text-embedding-3-small",
-    "similarity_threshold": 0.7,
-    "max_results": 5
-  }
-}
-```
-
-**Memory Properties:**
-- `enabled` (optional, default: true): Enable memory system
-- `embedding_provider` (optional, default: "openai"): Embedding provider
-  - `"openai"`: OpenAI embeddings
-  - `"anthropic"`: Anthropic embeddings (future)
-  - `"local"`: Local embedding model
-- `embedding_model` (optional, default: "text-embedding-3-small"): Model name
-- `similarity_threshold` (optional, default: 0.7): Minimum similarity score (0-1)
-- `max_results` (optional, default: 5): Maximum number of results to return
+**Project Properties:**
+- `name` (required): Project name
+- `slug` (required): URL-safe project identifier (no dots - use underscores instead)
+- `repository` (required): Absolute path to git repository
+- `orchestration_dir` (optional, default: ".czarina"): Directory for orchestration files
+- `version` (required): Project version
+- `phase` (optional, default: 1): Current development phase number
+- `omnibus_branch` (optional): Integration/release branch for current phase (e.g., "cz1/release/v1.0.0")
+- `description` (optional): Project description
 
 ### Workers Section
 
@@ -81,22 +41,13 @@ Each worker defines a parallel work stream with its own branch and agent.
     {
       "id": "worker-id",
       "agent": "aider",
-      "role": "code",
-      "branch": "feat/feature-name",
+      "branch": "cz1/feat/feature-name",
       "description": "Worker description",
+      "phase": 1,
+      "role": "feature",
       "versions": ["v1.0.0-worker"],
       "token_budget": 2000000,
-      "dependencies": ["other-worker-id"],
-      "rules": {
-        "enabled": true,
-        "auto_load": true,
-        "domains": ["python", "testing"]
-      },
-      "memory": {
-        "enabled": true,
-        "use_core": true,
-        "search_on_start": true
-      }
+      "dependencies": ["other-worker-id"]
     }
   ]
 }
@@ -105,28 +56,13 @@ Each worker defines a parallel work stream with its own branch and agent.
 **Worker Properties:**
 - `id` (required): Unique identifier for the worker
 - `agent` (required): Agent type (aider, cursor, claude-code, etc.)
-- `branch` (required): Git branch for this worker's changes
+- `branch` (required): Git branch for this worker's changes (should follow naming convention: `cz<phase>/feat/<worker-id>`)
 - `description` (required): Human-readable description of worker's task
-- `role` (optional, v0.7.0+): Worker role for rule loading
-  - `"code"`: Code implementation
-  - `"plan"`: Architecture and planning
-  - `"review"`: Code review and quality
-  - `"test"`: Testing and QA
-  - `"integration"`: Integration and merging
-  - `"research"`: Research and exploration
+- `phase` (optional, default: 1): Phase number this worker belongs to
+- `role` (optional, default: "feature"): Worker role ("feature" or "integration")
 - `versions` (optional): Version tags for this worker's output
 - `token_budget` (optional): Maximum tokens for this worker
 - `dependencies` (optional): Array of worker IDs that must complete before this worker starts
-- `merges` (optional): Array of worker branches to merge (for integration workers)
-- `rules` (optional, v0.7.0+): Worker-level rules configuration
-  - `enabled` (optional, default: true): Enable rules for this worker
-  - `auto_load` (optional, default: true): Auto-load rules based on role
-  - `domains` (optional): Specific rule domains to load
-    - Available: `"python"`, `"javascript"`, `"typescript"`, `"testing"`, `"security"`, `"documentation"`, `"performance"`, `"git"`
-- `memory` (optional, v0.7.0+): Worker-level memory configuration
-  - `enabled` (optional, default: true): Enable memory for this worker
-  - `use_core` (optional, default: true): Use core memory system
-  - `search_on_start` (optional, default: true): Search memory when worker starts
 
 ### Orchestration Section
 
@@ -184,118 +120,81 @@ Controls the background monitoring daemon.
 - `enabled` (optional, default: true): Enable background daemon monitoring
 - `auto_approve` (optional): Array of operations to auto-approve
 
+### Phase Completion Section (v0.7.2+)
+
+Controls automatic phase completion detection and transitions.
+
+```json
+{
+  "phase_completion_mode": "any"
+}
+```
+
+**Phase Completion Modes:**
+
+- **`any`** (default): Any completion signal indicates worker is complete
+  - Use for: Flexible development, rapid iteration
+  - Signals: Worker log marker OR branch merged OR status file
+
+- **`all`**: All completion signals must be present
+  - Use for: High confidence, multiple verification
+  - Requires: Worker log marker AND branch merged AND status file
+
+- **`strict`**: Log marker AND at least one other signal
+  - Use for: Production releases, critical systems
+  - Requires: Worker log marker AND (branch merged OR status file)
+
+**Completion Signals:**
+
+1. **Worker Log Marker**: Worker calls `czarina_log_worker_complete`
+2. **Branch Merged**: Worker branch merged to omnibus branch
+3. **Status File**: `status/worker-status.json` shows "complete"
+
+**Phase Completion Properties:**
+- `phase_completion_mode` (optional, default: "any"): How to detect worker completion
+
+### Hopper Section
+
+Controls the two-level hopper system for enhancement requests.
+
+```json
+{
+  "hopper": {
+    "enabled": true,
+    "project_hopper": ".czarina/hopper",
+    "phase_hopper": ".czarina-v1.0.0/phase-hopper",
+    "czar_monitoring": {
+      "enabled": false,
+      "check_interval": 900
+    }
+  }
+}
+```
+
+**Hopper Properties:**
+- `enabled` (optional, default: false): Enable hopper system
+- `project_hopper` (optional): Path to project-level hopper
+- `phase_hopper` (optional): Path to phase-level hopper
+- `czar_monitoring.enabled` (optional, default: false): Enable Czar monitoring of hopper
+- `czar_monitoring.check_interval` (optional, default: 900): Check interval in seconds
+
 ## Example Configurations
 
-### Basic Configuration (v0.6.2 compatible)
+### Basic Single-Phase Configuration
 
 ```json
 {
   "project": {
     "name": "my-project",
-    "slug": "my-project",
+    "slug": "my-project-v1_0_0",
     "repository": "/home/user/projects/my-project",
     "orchestration_dir": ".czarina",
     "version": "1.0.0",
+    "phase": 1,
+    "omnibus_branch": "cz1/release/v1.0.0",
     "description": "My project description"
   },
-  "workers": [
-    {
-      "id": "backend",
-      "agent": "claude",
-      "branch": "feat/backend",
-      "description": "Backend implementation",
-      "token_budget": 2000000
-    },
-    {
-      "id": "frontend",
-      "agent": "cursor",
-      "branch": "feat/frontend",
-      "description": "Frontend implementation",
-      "token_budget": 1500000
-    }
-  ],
-  "orchestration": {
-    "mode": "local"
-  },
-  "daemon": {
-    "enabled": true,
-    "auto_approve": ["read", "write", "commit"]
-  }
-}
-```
-
-### Configuration with Agent Rules (v0.7.0+)
-
-```json
-{
-  "project": {
-    "name": "my-project",
-    "repository": "/home/user/projects/my-project",
-    "version": "1.0.0"
-  },
-  "agent_rules": {
-    "library_path": ".czarina/agent-rules",
-    "mode": "auto",
-    "condensed": true
-  },
-  "workers": [
-    {
-      "id": "backend",
-      "agent": "claude",
-      "role": "code",
-      "branch": "feat/backend",
-      "description": "Backend API implementation",
-      "token_budget": 2000000,
-      "rules": {
-        "enabled": true,
-        "auto_load": true,
-        "domains": ["python", "testing", "security"]
-      }
-    },
-    {
-      "id": "qa",
-      "agent": "aider",
-      "role": "test",
-      "branch": "feat/testing",
-      "description": "QA and testing",
-      "token_budget": 1000000,
-      "dependencies": ["backend"],
-      "rules": {
-        "enabled": true,
-        "domains": ["testing", "security"]
-      }
-    }
-  ],
-  "orchestration": {
-    "mode": "sequential_dependencies"
-  }
-}
-```
-
-### Full-Featured Configuration (v0.7.0+)
-
-```json
-{
-  "project": {
-    "name": "my-project",
-    "slug": "my-project",
-    "repository": "/home/user/projects/my-project",
-    "orchestration_dir": ".czarina",
-    "version": "1.0.0",
-    "description": "My project description"
-  },
-  "agent_rules": {
-    "library_path": ".czarina/agent-rules",
-    "mode": "auto",
-    "condensed": true
-  },
-  "memory": {
-    "enabled": true,
-    "embedding_provider": "openai",
-    "embedding_model": "text-embedding-3-small",
-    "similarity_threshold": 0.7,
-    "max_results": 5
-  },
+  "phase_completion_mode": "any",
   "orchestration": {
     "mode": "sequential_dependencies",
     "allow_parallel_when_possible": true,
@@ -305,111 +204,112 @@ Controls the background monitoring daemon.
     {
       "id": "foundation",
       "agent": "aider",
-      "role": "code",
-      "branch": "feat/core-infrastructure",
+      "branch": "cz1/feat/foundation",
       "description": "Core infrastructure and utilities",
+      "phase": 1,
       "token_budget": 2000000,
-      "dependencies": [],
-      "rules": {
-        "enabled": true,
-        "auto_load": true,
-        "domains": ["python", "testing"]
-      },
-      "memory": {
-        "enabled": true,
-        "use_core": true,
-        "search_on_start": true
-      }
+      "dependencies": []
     },
     {
       "id": "api",
       "agent": "cursor",
-      "role": "code",
-      "branch": "feat/api-endpoints",
+      "branch": "cz1/feat/api",
       "description": "REST API implementation",
+      "phase": 1,
       "token_budget": 1500000,
-      "dependencies": ["foundation"],
-      "rules": {
-        "enabled": true,
-        "domains": ["python", "security", "performance"]
-      },
-      "memory": {
-        "enabled": true,
-        "search_on_start": true
-      }
+      "dependencies": ["foundation"]
     },
     {
       "id": "ui",
       "agent": "cursor",
-      "role": "code",
-      "branch": "feat/user-interface",
+      "branch": "cz1/feat/ui",
       "description": "User interface components",
+      "phase": 1,
       "token_budget": 1500000,
-      "dependencies": ["foundation"],
-      "rules": {
-        "enabled": true,
-        "domains": ["javascript", "typescript", "performance"]
-      },
-      "memory": {
-        "enabled": true,
-        "search_on_start": true
-      }
+      "dependencies": ["foundation"]
     },
     {
       "id": "integration",
       "agent": "aider",
-      "role": "test",
-      "branch": "feat/integration-tests",
+      "branch": "cz1/release/v1.0.0",
       "description": "End-to-end integration testing",
+      "phase": 1,
+      "role": "integration",
       "token_budget": 1000000,
-      "dependencies": ["api", "ui"],
-      "rules": {
-        "enabled": true,
-        "domains": ["testing", "security"]
-      },
-      "memory": {
-        "enabled": true,
-        "search_on_start": true
-      }
+      "dependencies": ["api", "ui"]
     }
   ],
   "daemon": {
     "enabled": true,
     "auto_approve": ["read", "write", "commit"]
+  },
+  "hopper": {
+    "enabled": true,
+    "project_hopper": ".czarina/hopper",
+    "phase_hopper": ".czarina-v1.0.0/phase-hopper"
   }
 }
 ```
 
 In this example:
+- Phase 1 orchestration with branch naming convention `cz1/feat/*`
 - `foundation` has no dependencies and starts immediately
 - `api` and `ui` both depend on `foundation` and will wait for it
 - `integration` depends on both `api` and `ui` and waits for both
 - With `sequential_dependencies` mode, this ensures correct execution order
-- All workers have agent rules enabled with role-specific domains
-- Memory system is enabled globally and for all workers
+- Phase completion mode `any` allows flexible completion detection
+- Integration worker uses omnibus branch `cz1/release/v1.0.0`
 
-## Validation
+### Multi-Phase Configuration (v0.7.2+)
 
-### Validate Your Configuration
-
-```bash
-python3 schema/config-validator.py validate .czarina/config.json
+```json
+{
+  "project": {
+    "name": "my-project",
+    "slug": "my-project-v2_0_0",
+    "repository": "/home/user/projects/my-project",
+    "version": "2.0.0",
+    "phase": 2,
+    "omnibus_branch": "cz2/release/v2.0.0"
+  },
+  "phase_completion_mode": "strict",
+  "workers": [
+    {
+      "id": "security",
+      "agent": "claude",
+      "branch": "cz2/feat/security",
+      "description": "Security hardening features",
+      "phase": 2,
+      "dependencies": []
+    },
+    {
+      "id": "performance",
+      "agent": "claude",
+      "branch": "cz2/feat/performance",
+      "description": "Performance optimization",
+      "phase": 2,
+      "dependencies": []
+    },
+    {
+      "id": "integration",
+      "agent": "claude",
+      "branch": "cz2/release/v2.0.0",
+      "description": "Phase 2 integration and testing",
+      "phase": 2,
+      "role": "integration",
+      "dependencies": ["security", "performance"]
+    }
+  ],
+  "daemon": {
+    "enabled": true
+  }
+}
 ```
 
-### Get Configuration Summary
-
-```bash
-python3 schema/config-validator.py summary .czarina/config.json
-```
-
-### Check Backward Compatibility
-
-```bash
-python3 schema/config-validator.py check-compat .czarina/config.json
-```
-
-## See Also
-
-- [Migration Guide](MIGRATION_v0.7.0.md) - Migrating from v0.6.2 to v0.7.0
-- [JSON Schema](../schema/config-schema.json) - Full schema definition
-- [Example Configs](../examples/) - Additional example configurations
+In this multi-phase example:
+- Phase 2 configuration (following Phase 1 completion)
+- Branch naming uses `cz2/` prefix for phase isolation
+- Strict completion mode for production release
+- Security and performance workers run in parallel
+- Integration worker merges to omnibus branch `cz2/release/v2.0.0`
+- Automatic phase completion detection triggers when all workers done
