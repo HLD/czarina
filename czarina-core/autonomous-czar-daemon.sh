@@ -19,6 +19,9 @@ set -uo pipefail  # Don't use -e - daemon should continue on errors
 # CONFIGURATION
 # ============================================================================
 
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 PROJECT_DIR="${1:-.}"
 CONFIG_FILE="${PROJECT_DIR}/config.json"
 
@@ -299,34 +302,38 @@ monitor_workers() {
     fi
 }
 
-# Launch Phase 2 workers
+# Launch Phase 2 workers (generalized for any phase transition)
 launch_phase_2() {
-    log "INFO" "🚀 Launching Phase 2 workers..."
-    log_decision "PHASE_TRANSITION" "Starting Phase 2 worker launches"
+    log "INFO" "🚀 Initiating phase transition..."
+    log_decision "PHASE_TRANSITION" "Starting automated phase transition"
 
-    # Get Phase 2 workers
-    phase_2_workers=($(get_phase_workers 2))
+    # Use the phase-transition.sh script to handle the transition
+    local transition_script="${SCRIPT_DIR}/phase-transition.sh"
 
-    if [ ${#phase_2_workers[@]} -eq 0 ]; then
-        log "WARN" "No Phase 2 workers defined in config"
-        return
+    if [ ! -f "$transition_script" ]; then
+        log "ERROR" "Phase transition script not found: $transition_script"
+        log_decision "PHASE_TRANSITION_FAILED" "Script not found"
+        return 1
     fi
 
-    log "INFO" "Phase 2 workers to launch: ${#phase_2_workers[@]}"
+    # Execute phase transition
+    log "INFO" "Executing: $transition_script $CONFIG_FILE transition"
 
-    # TODO: Implement actual worker launching
-    # For now, just log the intent
-    for worker_idx in "${phase_2_workers[@]}"; do
-        worker_id=$(get_worker_id $worker_idx)
-        log "INFO" "  → Would launch: $worker_id"
-        log_decision "WORKER_LAUNCH" "Phase 2 worker: $worker_id"
-    done
+    if "$transition_script" "$CONFIG_FILE" transition >> "$LOG_FILE" 2>&1; then
+        log "SUCCESS" "✅ Phase transition completed successfully"
+        log_decision "PHASE_TRANSITION_SUCCESS" "New phase workers launched"
 
-    # Update state
-    jq '.phase_2_launched = true | .current_phase = 2' "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
-    mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
+        # Update state - mark phase 2 as launched (for backward compatibility)
+        # Note: The actual phase number is now tracked in config.json
+        jq '.phase_2_launched = true | .current_phase = 2' "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
+        mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
 
-    log "INFO" "✅ Phase 2 launch complete"
+        return 0
+    else
+        log "ERROR" "❌ Phase transition failed"
+        log_decision "PHASE_TRANSITION_FAILED" "Check logs for details"
+        return 1
+    fi
 }
 
 # ============================================================================

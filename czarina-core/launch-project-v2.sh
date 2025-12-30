@@ -57,6 +57,11 @@ fi
 PROJECT_NAME=$(jq -r '.project.name' "$CONFIG_FILE")
 PROJECT_SLUG=$(jq -r '.project.slug' "$CONFIG_FILE")
 PROJECT_ROOT=$(jq -r '.project.repository' "$CONFIG_FILE")
+CURRENT_PHASE=$(jq -r '.project.phase // 1' "$CONFIG_FILE")
+
+# Phase filtering support
+# Set PHASE_FILTER env var to launch only workers for a specific phase
+PHASE_FILTER="${PHASE_FILTER:-$CURRENT_PHASE}"
 
 # Get orchestrator directory (where czarina executable lives)
 ORCHESTRATOR_DIR="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
@@ -92,15 +97,32 @@ echo "   Session: $SESSION_NAME"
 echo "   Root: $PROJECT_ROOT"
 echo ""
 
-# Get worker count
-WORKER_COUNT=$(jq -r '.workers | length' "$CONFIG_FILE")
+# Helper function: Check if worker belongs to current phase
+is_phase_worker() {
+    local worker_idx=$1
+    local worker_phase=$(jq -r ".workers[$worker_idx].phase // 1" "$CONFIG_FILE")
+    [ "$worker_phase" = "$PHASE_FILTER" ]
+}
+
+# Get total worker count and phase-filtered count
+TOTAL_WORKER_COUNT=$(jq -r '.workers | length' "$CONFIG_FILE")
+WORKER_COUNT=0
+for idx in $(seq 0 $((TOTAL_WORKER_COUNT - 1))); do
+    if is_phase_worker $idx; then
+        WORKER_COUNT=$((WORKER_COUNT + 1))
+    fi
+done
 
 # Session planning:
 # - Main session: Window 0 = Czar, Windows 1-9 = Workers 1-9
 # - Mgmt session: Workers 10+, Daemon, Dashboard
 MAX_WORKERS_IN_MAIN=9
 
-echo -e "${BLUE}👷 ${WORKER_COUNT} workers${NC}"
+if [ "$PHASE_FILTER" != "$CURRENT_PHASE" ]; then
+    echo -e "${BLUE}👷 ${WORKER_COUNT} workers (Phase ${PHASE_FILTER})${NC}"
+else
+    echo -e "${BLUE}👷 ${WORKER_COUNT} workers${NC}"
+fi
 if [ $WORKER_COUNT -gt $MAX_WORKERS_IN_MAIN ]; then
     MGMT_SESSION="${SESSION_NAME}-mgmt"
     echo -e "${BLUE}   Main session: Czar + Workers 1-9${NC}"
@@ -306,9 +328,17 @@ if [ -n "$CZAR_AGENT" ] && [ "$CZAR_AGENT" != "null" ]; then
 fi
 
 # Create workers 1-9 in main session
+# Need to iterate through all workers and only launch phase-filtered ones
 WORKERS_IN_MAIN=$((WORKER_COUNT < MAX_WORKERS_IN_MAIN ? WORKER_COUNT : MAX_WORKERS_IN_MAIN))
-for i in $(seq 1 $WORKERS_IN_MAIN); do
-    create_worker_window "$SESSION_NAME" $i $(($i - 1))
+worker_num=0
+for worker_idx in $(seq 0 $((TOTAL_WORKER_COUNT - 1))); do
+    if ! is_phase_worker $worker_idx; then
+        continue
+    fi
+    worker_num=$((worker_num + 1))
+    if [ $worker_num -le $WORKERS_IN_MAIN ]; then
+        create_worker_window "$SESSION_NAME" $worker_num $worker_idx
+    fi
 done
 
 # Create management session
@@ -334,8 +364,15 @@ INFO_EOF
 # Create overflow workers (10+) in mgmt session
 if [ $WORKER_COUNT -gt $MAX_WORKERS_IN_MAIN ]; then
     tmux send-keys -t "${MGMT_SESSION}:info" "echo '- Workers 10-${WORKER_COUNT}'" C-m
-    for i in $(seq $(($MAX_WORKERS_IN_MAIN + 1)) $WORKER_COUNT); do
-        create_worker_window "$MGMT_SESSION" $i $(($i - 1))
+    worker_num=0
+    for worker_idx in $(seq 0 $((TOTAL_WORKER_COUNT - 1))); do
+        if ! is_phase_worker $worker_idx; then
+            continue
+        fi
+        worker_num=$((worker_num + 1))
+        if [ $worker_num -gt $WORKERS_IN_MAIN ]; then
+            create_worker_window "$MGMT_SESSION" $worker_num $worker_idx
+        fi
     done
 fi
 
