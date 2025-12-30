@@ -112,302 +112,38 @@ czarina launch
 
 - 🤖 **Agent-Agnostic** - Works with 9+ AI coding assistants (Claude Code, Aider, Cursor, Kilocode, Windsurf, Cline, Roo-Code, Continue, Copilot Edits)
 - ⚡ **95-98% Autonomy** - Daemon system with auto-approval reduces manual intervention to 2-5%
-- 🧠 **Persistent Memory** - Workers remember and learn from past sessions (v0.7.0+)
-- 📚 **43K+ Agent Rules** - Production-tested best practices built-in (v0.7.0+)
-- 🎯 **Embedded** - `.czarina/` lives in your project (like `.git/`)
+- 🧠 **Persistent Memory** - Workers remember and learn from past sessions
+- 📚 **43K+ Agent Rules** - Production-tested best practices built-in
+- 🎯 **One-Command Launch** - `czarina analyze plan.md --go` - from plan to running in <60 seconds
 - 🌳 **Git Worktrees** - Each worker gets isolated workspace for true parallelism
 - 🔀 **Auto Branches** - Worker branches created and managed automatically
 - 📊 **Battle-Tested** - SARK v2.0: 10 workers, 3-4x speedup
 
-### ✨ What's New in v0.7.1
-
-**Patch Release - UX Foundation Fixes** (December 2025)
-
-Czarina now "just works" - critical UX issues fixed that were blocking adoption:
-
-#### 🎯 The Problem
-- Workers got stuck not knowing what to do first (1 per orchestration)
-- Czar required manual coordination (not actually autonomous)
-- Launch process took 8 steps and 10+ minutes
-
-#### ✅ The Fix
-Three critical improvements that make Czarina dramatically easier to use:
-
-**1. Workers Never Get Stuck** (0 stuck workers, down from 1 per orchestration)
-- All worker identities now include explicit "YOUR FIRST ACTION" section
-- Workers know exactly what to do immediately upon launch
-- No more workers waiting for instructions
-
-**2. Czar Actually Autonomous** (0 manual coordination needed)
-- Autonomous Czar daemon with automatic worker monitoring
-- Monitors worker progress every 30 seconds
-- Detects stuck/idle workers and takes action
-- Truly hands-off orchestration
-
-**3. One-Command Launch** (<60 seconds, down from 10+ minutes)
-```bash
-czarina analyze plan.md --go  # That's it!
-```
-- Analyzes plan, creates config, launches workers - all in one command
-- Fully automated launch process
-- Phase transitions happen automatically
-
-#### 📊 Before vs After
-
-**Before v0.7.1:**
-```bash
-# 8 manual steps, 10+ minutes
-czarina analyze plan.md       # 1. Analyze plan
-# Cut/paste into Claude         2. Manual interaction
-# Edit config.json              3. Manual configuration
-# Create worker files           4. Manual file creation
-czarina launch                # 5. Launch workers
-# Wait for workers...           6. Manual monitoring
-czarina daemon start          # 7. Start daemon
-# Check worker status           8. Manual coordination
-# Fix stuck workers             9. Debugging
-```
-
-**After v0.7.1:**
-```bash
-# 1 command, <60 seconds
-czarina analyze plan.md --go  # Done!
-```
-
-#### 🎁 What You Get
-- **0 stuck workers** - Explicit first actions prevent confusion
-- **0 manual coordination** - Czar monitors and acts autonomously
-- **<60 second launch** - From plan to fully running orchestration
-- **100% success rate** - Workers always know what to do
-- **True autonomy** - Set it and forget it
-
-#### 🔧 New Features
-- Worker identity template with "YOUR FIRST ACTION" section
-- Autonomous Czar daemon with monitoring loop
-- `czarina analyze plan.md --go` flag for one-command launch
-- Comprehensive testing suite for all UX fixes
-- Automatic phase transitions
-
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+**Latest Updates:** See [CHANGELOG.md](CHANGELOG.md) for version history and recent releases.
 
 ---
 
-### ✨ What's New in v0.7.0
+## 📊 Real-World Results
 
-**Major Release - Learning & Knowledge-Powered Workers** (December 2025)
+### SARK v2.0 Project (Production Case Study)
+- **Team:** 10 AI workers (6 engineers, 2 QA, 2 docs)
+- **Timeline:** 6-8 weeks (vs. 22-26 weeks sequential)
+- **Speedup:** 3-4x faster delivery
+- **Autonomy:** 95-98% with daemon auto-approval
+- **Status:** ✅ Successfully deployed
 
-Transform workers from amnesiacs into continuous learners with institutional knowledge:
+This demonstrates Czarina can handle large-scale projects with 10+ workers in parallel.
 
-#### 🧠 Persistent Memory System
-Workers now remember and learn across sessions:
+### ✨ Latest Release - v0.7.2 (December 2025)
 
-```bash
-czarina init --with-memory
-czarina memory query "database timeout issues"
-czarina memory extract  # Capture session learnings
-```
+**Automated Multi-Phase Orchestration**
+- Automatic phase completion detection
+- Seamless phase transitions
+- Hands-free multi-phase projects
 
-**3-tier architecture:**
-- **Architectural Core** - Essential context loaded every session
-- **Project Knowledge** - Semantic search of past sessions
-- **Session Context** - Ephemeral working state
-
-**Benefits:**
-- Workers remember past mistakes and solutions
-- Build institutional knowledge over time
-- Avoid repeating debugging sessions
-- Maintain architectural understanding
-
-See [MEMORY_GUIDE.md](MEMORY_GUIDE.md)
-
-#### 📚 Agent Rules Library (43K+ Lines)
-Workers start with production-tested best practices built-in:
-
-- Python development standards
-- Role-specific guidance (Architect, Code, QA, Debug, Docs, Orchestrator)
-- Workflow best practices
-- Design patterns (tool use, streaming, caching, error recovery)
-- Testing and security standards
-- Documentation templates
-
-**Automatic loading based on worker role:**
-```json
-{
-  "agent_rules": { "enabled": true },
-  "workers": [
-    { "id": "backend", "role": "code" }  // Auto-loads Python, testing, security rules
-  ]
-}
-```
-
-**Quality impact:**
-- 30-40% reduction in common errors
-- Faster debugging (workers know patterns)
-- More consistent code quality
-- Better test coverage
-
-See [AGENT_RULES.md](AGENT_RULES.md)
-
-#### 🔄 The Synergy
-Memory + Rules work together powerfully:
-
-- **Agent Rules** = Universal best practices ("use connection pooling")
-- **Memory** = Project-specific learnings ("our DB connections timeout at 30s")
-- **Together** = Workers apply both universal wisdom AND project experience
-
-#### 🆕 New CLI Commands
-```bash
-# Memory system
-czarina memory init              # Initialize memory
-czarina memory query "<search>"  # Search past sessions
-czarina memory extract           # Capture learnings
-czarina memory rebuild           # Rebuild search index
-
-# Enhanced init
-czarina init --with-memory --with-rules
-```
-
-#### 🎯 100% Backward Compatible
-All new features are **opt-in**. Existing orchestrations work unchanged.
-
-See [MIGRATION_v0.7.0.md](MIGRATION_v0.7.0.md) for migration guide.
+See [CHANGELOG.md](CHANGELOG.md) for complete release notes and migration guides.
 
 ---
-
-### ✨ What's New in v0.6.1
-
-**Patch Release - Streamlined Initialization & UX Improvements** (December 2025)
-
-Better workflow for starting new projects and improved orchestration experience:
-
-#### 🚀 Streamlined Initialization
-One command to create your orchestration from a plan file:
-
-```bash
-czarina init --plan docs/implementation-plan.md
-```
-
-Claude Code launches interactively to create config.json and worker files - no more manual configuration!
-
-#### 🎭 Auto-launch Czar
-The Czar (coordination agent) now auto-launches with Claude Code, just like workers:
-- Creates CZAR_IDENTITY.md with coordination instructions
-- Configurable via config.czar.agent
-- Context-aware prompts for monitoring and coordination
-
-#### 🏢 Orchestration Mode
-Configure how workers are managed:
-- **local** mode: Git worktrees, no auto-push (default)
-- **github** mode: Workers via GitHub for Claude Code Web
-- Prevents accidental pushes in local development
-
-#### 🛡️ Omnibus Branch Protection
-Prevents accidental feature work on release branches:
-- Only integration workers (QA, etc.) can use omnibus branch
-- All other workers must use feature branches
-- Validates at launch time
-
-#### 🪟 Better tmux Window Names
-- Before: worker1, worker2, worker3
-- After: logging, phase-mgmt, hopper
-- Much easier to navigate!
-
-See [CHANGELOG.md](CHANGELOG.md) for full details.
-
----
-
-### ✨ What's New in v0.6.0
-
-**Minor Release - Professional Closeout Reporting** (December 2025)
-
-Comprehensive project closeout documentation and reporting:
-
-#### 📊 Comprehensive Closeout Reports (E#17)
-Rich, detailed reports when orchestrations complete. **Complete visibility into project progress!**
-
-```bash
-czarina closeout  # Generates comprehensive reports with all metrics
-```
-
-**What's included:**
-- Worker summaries with branch information and activity
-- Detailed commit history per worker with commit counts
-- Files changed analysis (per worker and overall)
-- Orchestration duration tracking (start to end time)
-- Key metrics: commits, files, lines added/removed
-- Git statistics and repository state
-
-**Archive structure:**
-```
-.czarina/
-├── archive/2025-12-26_14-30-00/
-│   └── CLOSEOUT.md          # Full detailed report
-└── phases/phase-1-v0.6.0/
-    ├── CLOSEOUT.md          # Full report (archived)
-    ├── PHASE_SUMMARY.md     # Quick reference
-    ├── config.json          # Configuration backup
-    └── logs/                # Logs backup
-```
-
-**Benefits:**
-- Complete project documentation
-- Historical phase tracking
-- Easy comparison between versions
-- Professional audit trail
-
-See [docs/MIGRATION_v0.6.0.md](docs/MIGRATION_v0.6.0.md)
-
-#### 🚀 Logging Auto-Initialization
-Logging system automatically starts with orchestration. **Zero manual setup!**
-
-- Log directories created on `czarina launch`
-- Duration tracking works immediately
-- Consistent logging structure
-
-### 🆕 New in v0.5.1
-
-**Patch Release - UX Enhancements** (December 2025)
-
-Two quality-of-life improvements discovered during v0.5.0 dogfooding:
-
-#### 🚀 Auto-Launch Agent System
-Workers automatically start with AI agents pre-configured. **Zero manual setup!**
-
-```bash
-czarina launch  # Agents auto-launch with instructions loaded
-```
-
-**Before:** 18 manual steps (switch windows, start agents, paste instructions)
-**After:** 0 manual steps
-
-- Auto-launches Claude Code, Aider, or Cursor agents
-- Pre-loads worker instructions from `.czarina/workers/<worker-id>.md`
-- Auto-configures approval permissions
-- Creates `WORKER_IDENTITY.md` for context
-
-See [czarina-core/docs/AUTO_LAUNCH.md](czarina-core/docs/AUTO_LAUNCH.md)
-
-#### 🎭 Daemon Quiet Mode
-Daemon only outputs when workers are active. **No more text scrolling off screen!**
-
-- Silent iterations when workers are idle (>5 min)
-- Clean, elegant output that preserves important messages
-- Configurable via `DAEMON_ACTIVITY_THRESHOLD` (default: 300s)
-- Disable with `DAEMON_ALWAYS_OUTPUT=true` for legacy behavior
-
-See [czarina-core/docs/DAEMON.md](czarina-core/docs/DAEMON.md)
-
-### 🆕 New in v0.5.0
-
-- 📝 **Structured Logging** - Workers log to `.czarina/logs/<worker>.log` with machine-readable event stream
-- 📂 **Session Workspaces** - Complete session artifacts in `.czarina/work/<session-id>/` with closeout reports
-- 🎯 **Proactive Coordination** - Czar monitors and coordinates automatically with periodic status reports
-- 🔗 **Dependency Enforcement** - Workers respect dependency chains with configurable orchestration modes
-- ✨ **Enhanced UX** - Tmux windows show worker IDs, improved daemon output, commit checkpoint templates
-- 📊 **Fixed Dashboard** - Live worker status monitoring with real-time metrics display
-
----
-
 ## 🤖 Supported Agents
 
 Czarina orchestrates 9+ AI coding assistants with varying autonomy levels:
@@ -428,20 +164,6 @@ Czarina orchestrates 9+ AI coding assistants with varying autonomy levels:
 
 **See [AGENT_COMPATIBILITY.md](AGENT_COMPATIBILITY.md) for detailed comparison.**
 
----
-
-## 📊 Real-World Results
-
-### SARK v2.0 Project (Real-World Case Study)
-- **Team:** 10 AI workers (6 engineers, 2 QA, 2 docs)
-- **Timeline:** 6-8 weeks (vs. 22-26 weeks sequential)
-- **Speedup:** 3-4x faster delivery
-- **Autonomy:** 95-98% with daemon auto-approval
-- **Status:** ✅ Successfully deployed
-
-This demonstrates Czarina can handle large-scale projects with 10+ workers in parallel.
-
----
 
 ## 🛠️ CLI Reference
 
