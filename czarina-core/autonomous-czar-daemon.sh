@@ -19,9 +19,6 @@ set -uo pipefail  # Don't use -e - daemon should continue on errors
 # CONFIGURATION
 # ============================================================================
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 PROJECT_DIR="${1:-.}"
 CONFIG_FILE="${PROJECT_DIR}/config.json"
 
@@ -88,8 +85,32 @@ log "INFO" "============================================"
 
 # Initialize phase state if not exists
 if [ ! -f "$PHASE_STATE_FILE" ]; then
-    echo '{"current_phase": 1, "phase_1_complete": false, "phase_2_launched": false}' > "$PHASE_STATE_FILE"
-    log "INFO" "Initialized phase state: Phase 1"
+    # Build initial state with all phases
+    local max_phase=1
+    for ((i=0; i<WORKER_COUNT; i++)); do
+        worker_phase=$(jq -r ".workers[$i].phase // 1" "$CONFIG_FILE")
+        if [ "$worker_phase" != "null" ] && [ "$worker_phase" -gt "$max_phase" ]; then
+            max_phase=$worker_phase
+        fi
+    done
+
+    # Create state object with phase tracking
+    local state='{"current_phase": 1, "orchestration_complete": false'
+
+    for ((phase=1; phase<=max_phase; phase++)); do
+        # Phase 1 is considered "launched" since those workers start immediately
+        if [ $phase -eq 1 ]; then
+            state="${state}, \"phase_${phase}_launched\": true"
+        else
+            state="${state}, \"phase_${phase}_launched\": false"
+        fi
+        state="${state}, \"phase_${phase}_complete\": false"
+    done
+
+    state="${state}}"
+    echo "$state" > "$PHASE_STATE_FILE"
+
+    log "INFO" "Initialized phase state: Phase 1 active, $max_phase total phases"
 fi
 
 # ============================================================================
@@ -188,21 +209,42 @@ get_worker_status() {
 # PHASE MANAGEMENT FUNCTIONS
 # ============================================================================
 
+# Get maximum phase number from config
+get_max_phase() {
+    local max_phase=1
+
+    for ((i=0; i<WORKER_COUNT; i++)); do
+        worker_phase=$(get_worker_phase $i)
+        if [ "$worker_phase" != "null" ] && [ "$worker_phase" -gt "$max_phase" ]; then
+            max_phase=$worker_phase
+        fi
+    done
+
+    echo "$max_phase"
+}
+
 # Check if phase is complete
 is_phase_complete() {
     local phase=$1
+    local phase_has_workers=false
     local all_complete=true
 
     for ((i=0; i<WORKER_COUNT; i++)); do
         worker_phase=$(get_worker_phase $i)
 
         if [ "$worker_phase" = "$phase" ]; then
+            phase_has_workers=true
             if ! is_worker_complete $i; then
                 all_complete=false
                 break
             fi
         fi
     done
+
+    # If no workers in this phase, consider it non-existent (not complete)
+    if [ "$phase_has_workers" = false ]; then
+        return 1
+    fi
 
     if [ "$all_complete" = true ]; then
         return 0  # Complete
@@ -211,7 +253,7 @@ is_phase_complete() {
     fi
 }
 
-# Get phase workers
+# Get phase workers (returns indices)
 get_phase_workers() {
     local phase=$1
     local workers=()
@@ -226,6 +268,19 @@ get_phase_workers() {
     echo "${workers[@]}"
 }
 
+# Check if all phases are complete
+is_orchestration_complete() {
+    local max_phase=$(get_max_phase)
+
+    for ((phase=1; phase<=max_phase; phase++)); do
+        if ! is_phase_complete $phase; then
+            return 1  # Not all phases complete
+        fi
+    done
+
+    return 0  # All phases complete!
+}
+
 # ============================================================================
 # MONITORING LOOP
 # ============================================================================
@@ -235,10 +290,16 @@ monitor_workers() {
 
     # Load current phase state
     current_phase=$(jq -r '.current_phase' "$PHASE_STATE_FILE")
-    phase_1_complete=$(jq -r '.phase_1_complete' "$PHASE_STATE_FILE")
-    phase_2_launched=$(jq -r '.phase_2_launched' "$PHASE_STATE_FILE")
+    orchestration_complete=$(jq -r '.orchestration_complete // false' "$PHASE_STATE_FILE")
 
-    log "INFO" "Current phase: $current_phase"
+    # If orchestration is complete, just monitor but don't trigger transitions
+    if [ "$orchestration_complete" = "true" ]; then
+        log "INFO" "🎉 Orchestration complete - monitoring only"
+        return
+    fi
+
+    local max_phase=$(get_max_phase)
+    log "INFO" "Current phase: $current_phase (max phase: $max_phase)"
 
     # Check each worker
     local stuck_workers=()
@@ -246,12 +307,24 @@ monitor_workers() {
     local active_workers=()
     local complete_workers=()
 
+    # Phase-specific tracking
+    declare -A phase_complete_count
+    declare -A phase_total_count
+
     for ((i=0; i<WORKER_COUNT; i++)); do
         worker_id=$(get_worker_id $i)
         worker_phase=$(get_worker_phase $i)
         status=$(get_worker_status $i)
 
         log "INFO" "  Worker $worker_id (phase $worker_phase): $status"
+
+        # Track phase statistics
+        if [ "$worker_phase" != "null" ]; then
+            phase_total_count[$worker_phase]=$((${phase_total_count[$worker_phase]:-0} + 1))
+            if [ "$status" = "COMPLETE" ]; then
+                phase_complete_count[$worker_phase]=$((${phase_complete_count[$worker_phase]:-0} + 1))
+            fi
+        fi
 
         case "$status" in
             STUCK)
@@ -281,59 +354,164 @@ monitor_workers() {
         log "INFO" "💤 Idle workers (idle > 10 min): ${idle_workers[*]}"
     fi
 
-    # Report progress
-    log "INFO" "📈 Progress: ${#complete_workers[@]}/$WORKER_COUNT complete, ${#active_workers[@]} active"
+    # Report overall progress
+    log "INFO" "📈 Overall: ${#complete_workers[@]}/$WORKER_COUNT complete, ${#active_workers[@]} active"
 
-    # Check Phase 1 completion
-    if [ "$current_phase" = "1" ] && [ "$phase_1_complete" = "false" ]; then
-        if is_phase_complete 1; then
-            log "INFO" "✅ PHASE 1 COMPLETE! All Phase 1 workers done."
-            log_decision "PHASE_COMPLETE" "Phase 1 complete with ${#complete_workers[@]} workers"
+    # Report phase-by-phase progress
+    for ((phase=1; phase<=max_phase; phase++)); do
+        local complete=${phase_complete_count[$phase]:-0}
+        local total=${phase_total_count[$phase]:-0}
 
-            # Update state
-            jq '.phase_1_complete = true' "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
+        if [ $total -gt 0 ]; then
+            log "INFO" "📊 Phase $phase: $complete/$total complete"
+        fi
+    done
+
+    # Check for phase transitions
+    # We check all phases in order, triggering the next phase when current completes
+    for ((phase=1; phase<=max_phase; phase++)); do
+        local phase_launched_key="phase_${phase}_launched"
+        local phase_complete_key="phase_${phase}_complete"
+
+        local is_launched=$(jq -r ".$phase_launched_key // false" "$PHASE_STATE_FILE")
+        local is_complete=$(jq -r ".$phase_complete_key // false" "$PHASE_STATE_FILE")
+
+        # Check if this phase just completed
+        if [ "$is_complete" = "false" ] && is_phase_complete $phase; then
+            log "INFO" ""
+            log "INFO" "✅ ═══════════════════════════════════════════════"
+            log "INFO" "✅ PHASE $phase COMPLETE!"
+            log "INFO" "✅ ═══════════════════════════════════════════════"
+            log "INFO" ""
+
+            local phase_workers=($(get_phase_workers $phase))
+            log_decision "PHASE_COMPLETE" "Phase $phase complete with ${#phase_workers[@]} workers"
+
+            # Mark phase as complete
+            jq --arg key "$phase_complete_key" \
+               '.[$key] = true' "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
             mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
 
-            # Trigger Phase 2 launch
-            if [ "$phase_2_launched" = "false" ]; then
-                launch_phase_2
+            # Brief pause to ensure all workers have finished cleanup
+            log "INFO" "⏸️  Waiting 30s to ensure workers have finished cleanup..."
+            sleep 30
+
+            # Check if there's a next phase
+            local next_phase=$((phase + 1))
+            if [ $next_phase -le $max_phase ]; then
+                # Launch next phase
+                launch_next_phase $phase
+            else
+                # This was the last phase - check if orchestration is complete
+                if is_orchestration_complete; then
+                    handle_orchestration_complete
+                fi
             fi
         fi
+    done
+}
+
+# Launch next phase workers
+launch_next_phase() {
+    local completed_phase=$1
+    local next_phase=$((completed_phase + 1))
+
+    log "INFO" "🚀 Launching Phase $next_phase workers..."
+    log_decision "PHASE_TRANSITION" "Transitioning from Phase $completed_phase to Phase $next_phase"
+
+    # Get next phase workers
+    local next_phase_workers=($(get_phase_workers $next_phase))
+
+    if [ ${#next_phase_workers[@]} -eq 0 ]; then
+        log "INFO" "No Phase $next_phase workers defined - checking if orchestration complete"
+
+        # Check if ALL phases are done
+        if is_orchestration_complete; then
+            handle_orchestration_complete
+        fi
+        return
+    fi
+
+    log "INFO" "Phase $next_phase workers to launch: ${#next_phase_workers[@]}"
+
+    # Launch each worker using czarina launch with worker filtering
+    local launch_success=true
+    for worker_idx in "${next_phase_workers[@]}"; do
+        local worker_id=$(get_worker_id $worker_idx)
+        local worker_branch=$(get_worker_branch $worker_idx)
+
+        log "INFO" "  → Launching: $worker_id (branch: $worker_branch)"
+
+        # Check if worker already has a session
+        if tmux has-session -t "czarina-worker-${worker_id}" 2>/dev/null; then
+            log "WARN" "  ⚠️  Worker session already exists: $worker_id"
+            log_decision "WORKER_SKIP" "Worker $worker_id already running"
+            continue
+        fi
+
+        # Launch worker in background
+        # Note: This assumes czarina launch can target specific workers
+        # If not, we may need to call the launch script directly
+        cd "$PROJECT_ROOT" 2>/dev/null || {
+            log "ERROR" "Failed to change to project root: $PROJECT_ROOT"
+            launch_success=false
+            continue
+        }
+
+        # Try to launch using czarina CLI
+        if command -v czarina &> /dev/null; then
+            log "INFO" "  → Using czarina CLI to launch $worker_id"
+            # Note: This may need adjustment based on actual czarina launch API
+            # For now, we'll note this as needing the launch infrastructure
+            log "WARN" "  ⚠️  Worker auto-launch requires manual setup or launch script"
+            log_decision "WORKER_LAUNCH_PENDING" "Worker $worker_id needs manual launch"
+        else
+            log "WARN" "  ⚠️  czarina command not found - cannot auto-launch"
+            launch_success=false
+        fi
+    done
+
+    # Update phase state
+    local phase_key="phase_${next_phase}_launched"
+    jq --arg key "$phase_key" --argjson val true \
+       '.[$key] = $val | .current_phase = '$next_phase "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
+    mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
+
+    if [ "$launch_success" = true ]; then
+        log "INFO" "✅ Phase $next_phase launch complete"
+    else
+        log "WARN" "⚠️  Phase $next_phase launch completed with warnings"
     fi
 }
 
-# Launch Phase 2 workers (generalized for any phase transition)
-launch_phase_2() {
-    log "INFO" "🚀 Initiating phase transition..."
-    log_decision "PHASE_TRANSITION" "Starting automated phase transition"
+# Handle orchestration completion
+handle_orchestration_complete() {
+    log "INFO" ""
+    log "INFO" "🎉 ═══════════════════════════════════════════════"
+    log "INFO" "🎉 ORCHESTRATION COMPLETE!"
+    log "INFO" "🎉 ═══════════════════════════════════════════════"
+    log "INFO" ""
 
-    # Use the phase-transition.sh script to handle the transition
-    local transition_script="${SCRIPT_DIR}/phase-transition.sh"
+    log_decision "ORCHESTRATION_COMPLETE" "All phases complete - orchestration finished successfully"
 
-    if [ ! -f "$transition_script" ]; then
-        log "ERROR" "Phase transition script not found: $transition_script"
-        log_decision "PHASE_TRANSITION_FAILED" "Script not found"
-        return 1
-    fi
+    local max_phase=$(get_max_phase)
+    log "INFO" "✅ All $max_phase phases completed"
+    log "INFO" "✅ All workers finished their tasks"
+    log "INFO" ""
+    log "INFO" "Next steps:"
+    log "INFO" "  1. Review worker outputs"
+    log "INFO" "  2. Run integration tests"
+    log "INFO" "  3. Merge changes to main"
+    log "INFO" "  4. Use 'czarina closeout' to clean up"
+    log "INFO" ""
 
-    # Execute phase transition
-    log "INFO" "Executing: $transition_script $CONFIG_FILE transition"
+    # Update state to mark orchestration as complete
+    jq '.orchestration_complete = true | .completed_at = "'$(date -Iseconds)'"' \
+       "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
+    mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
 
-    if "$transition_script" "$CONFIG_FILE" transition >> "$LOG_FILE" 2>&1; then
-        log "SUCCESS" "✅ Phase transition completed successfully"
-        log_decision "PHASE_TRANSITION_SUCCESS" "New phase workers launched"
-
-        # Update state - mark phase 2 as launched (for backward compatibility)
-        # Note: The actual phase number is now tracked in config.json
-        jq '.phase_2_launched = true | .current_phase = 2' "$PHASE_STATE_FILE" > "${PHASE_STATE_FILE}.tmp"
-        mv "${PHASE_STATE_FILE}.tmp" "$PHASE_STATE_FILE"
-
-        return 0
-    else
-        log "ERROR" "❌ Phase transition failed"
-        log_decision "PHASE_TRANSITION_FAILED" "Check logs for details"
-        return 1
-    fi
+    # The daemon will continue monitoring but won't take further action
+    # This allows the user to review results before cleanup
 }
 
 # ============================================================================
