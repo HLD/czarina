@@ -10,14 +10,14 @@ source "$SCRIPT_DIR/context-builder.sh"
 
 launch_worker_agent() {
   local worker_id="$1"
-  local window_index="$2"
+  local window_number="$2"  # Just for display/logging, not used for tmux targeting
   local agent_type="$3"
   local session="$4"
 
   local project_root="$(pwd)"
   local config_path=".czarina/config.json"
 
-  echo "🚀 Launching $agent_type agent for: $worker_id (window $window_index)"
+  echo "🚀 Launching $agent_type agent for: $worker_id (window $window_number)"
 
   # Czar runs from project root, workers run from worktrees
   if [ "$worker_id" == "czar" ]; then
@@ -27,8 +27,8 @@ launch_worker_agent() {
   else
     local worktree_path=".czarina/worktrees/$worker_id"
     local work_path="$project_root/$worktree_path"
-    # Change to worktree
-    tmux send-keys -t $session:$window_index "cd $work_path" C-m
+    # Change to worktree (use worker_id as window name, not window_number)
+    tmux send-keys -t "$session:$worker_id" "cd $work_path" C-m
     sleep 1
     # Create worker identity file
     create_worker_identity "$worker_id" "$work_path"
@@ -51,31 +51,31 @@ launch_worker_agent() {
   # Launch appropriate agent
   case "$agent_type" in
     aider)
-      launch_aider "$worker_id" "$window_index" "$session"
+      launch_aider "$worker_id" "$session"
       ;;
     claude|claude-code)
-      launch_claude "$worker_id" "$window_index" "$session"
+      launch_claude "$worker_id" "$session"
       ;;
     claude-desktop)
-      launch_claude_desktop "$worker_id" "$window_index" "$session"
+      launch_claude_desktop "$worker_id" "$session"
       ;;
     kilocode)
-      launch_kilocode "$worker_id" "$window_index" "$session"
+      launch_kilocode "$worker_id" "$session"
       ;;
     cursor)
-      launch_cursor_guide "$worker_id" "$window_index" "$session"
+      launch_cursor_guide "$worker_id" "$session"
       ;;
     windsurf)
-      launch_windsurf_guide "$worker_id" "$window_index" "$session"
+      launch_windsurf_guide "$worker_id" "$session"
       ;;
     copilot|github-copilot)
-      launch_copilot_guide "$worker_id" "$window_index" "$session"
+      launch_copilot_guide "$worker_id" "$session"
       ;;
     chatgpt|chatgpt-code)
-      launch_chatgpt_guide "$worker_id" "$window_index" "$session"
+      launch_chatgpt_guide "$worker_id" "$session"
       ;;
     codeium)
-      launch_codeium_guide "$worker_id" "$window_index" "$session"
+      launch_codeium_guide "$worker_id" "$session"
       ;;
     *)
       echo "❌ Unknown agent type: $agent_type"
@@ -268,8 +268,7 @@ EOF
 
 launch_claude() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   # Czar runs from project root, workers from worktrees
   if [ "$worker_id" == "czar" ]; then
@@ -313,16 +312,15 @@ EOF
 
   echo "  ✅ Created Claude settings for $worker_id"
 
-  # Launch Claude with context-specific prompt
-  tmux send-keys -t $session:$window_index "claude --permission-mode bypassPermissions '$instructions_prompt'" C-m
+  # Launch Claude with context-specific prompt (use worker_id as window name)
+  tmux send-keys -t "$session:$worker_id" "claude --permission-mode bypassPermissions '$instructions_prompt'" C-m
 
   echo "  ✅ Launched Claude for $worker_id"
 }
 
 launch_kilocode() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   # Czar runs from project root, workers from worktrees
   if [ "$worker_id" == "czar" ]; then
@@ -346,16 +344,15 @@ launch_kilocode() {
   # Launch Kilocode with autonomous mode and auto-approve
   # --auto: Run in autonomous mode (non-interactive)
   # --yolo: Auto-approve all tool permissions
-  # --workspace: Set working directory
-  tmux send-keys -t $session:$window_index "kilocode --auto --yolo --workspace '$work_path' '$instructions_prompt'" C-m
+  # --workspace: Set working directory (use worker_id as window name)
+  tmux send-keys -t "$session:$worker_id" "kilocode --auto --yolo --workspace '$work_path' '$instructions_prompt'" C-m
 
   echo "  ✅ Launched Kilocode for $worker_id"
 }
 
 launch_aider() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local worktree_path=".czarina/worktrees/$worker_id"
 
@@ -377,16 +374,15 @@ EOF
 
   echo "  ✅ Created aider init file for $worker_id"
 
-  # Launch aider with auto-yes and init file
-  tmux send-keys -t $session:$window_index "aider --yes-always --load .aider-init" C-m
+  # Launch aider with auto-yes and init file (use worker_id as window name)
+  tmux send-keys -t "$session:$worker_id" "aider --yes-always --load .aider-init" C-m
 
   echo "  ✅ Launched aider for $worker_id"
 }
 
 launch_claude_desktop() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 
@@ -408,8 +404,7 @@ launch_claude_desktop() {
 
 launch_cursor_guide() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 
@@ -435,8 +430,7 @@ launch_cursor_guide() {
 
 launch_windsurf_guide() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 
@@ -461,8 +455,7 @@ launch_windsurf_guide() {
 
 launch_copilot_guide() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 
@@ -485,8 +478,7 @@ launch_copilot_guide() {
 
 launch_chatgpt_guide() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 
@@ -511,8 +503,7 @@ launch_chatgpt_guide() {
 
 launch_codeium_guide() {
   local worker_id="$1"
-  local window_index="$2"
-  local session="$3"
+  local session="$2"
 
   local work_path=".czarina/worktrees/$worker_id"
 

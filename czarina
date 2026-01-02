@@ -439,9 +439,11 @@ Please:
 4. Follow the czarina configuration format
 
 The config.json should include:
-- project metadata (name, slug, version, phase, omnibus_branch)
-- orchestration mode (local or github)
-- worker definitions (id, agent, branch, dependencies, role)
+- project metadata (name, slug, repository, version, phase, description)
+  CRITICAL: The 'repository' field MUST be set to the absolute path of the project directory
+- orchestration configuration (mode, omnibus_branch)
+- worker definitions (id, agent, branch, description, dependencies)
+  CRITICAL: Each worker MUST have an 'agent' field (usually "claude")
 - any special configuration (hopper, daemon settings, etc.)
 
 CRITICAL - Branch Naming Convention:
@@ -1831,9 +1833,12 @@ Please:
 4. Follow the czarina configuration format (see examples in czarina-core/templates/ if available)
 
 The config.json should include:
-- project metadata (name, slug, version, phase)
-- worker definitions (id, branch, dependencies)
-- any special configuration (hopper, orchestration mode, etc.)
+- project metadata (name, slug, repository, version, phase, description)
+  CRITICAL: The 'repository' field MUST be set to the absolute path of the project directory
+- worker definitions (id, agent, branch, description, dependencies)
+  CRITICAL: Each worker MUST have an 'agent' field (usually "claude")
+- orchestration configuration (mode, omnibus_branch if applicable)
+- any special configuration (hopper, daemon settings, etc.)
 
 CRITICAL - Branch Naming Convention:
 - Worker branches MUST follow the pattern: cz<phase>/feat/<worker-id>
