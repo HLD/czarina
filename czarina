@@ -9,6 +9,7 @@ Usage:
     czarina init <plan.md>      - Initialize orchestration from implementation plan
     czarina launch              - Launch Czar + workers + daemons + dashboard
     czarina closeout            - Stop all workers and clean up completely
+    czarina phase set <number>  - Set phase number and update branch names
     czarina phase close         - Close current phase, prepare for next
     czarina phase list          - List all completed phases
     czarina status              - Show project status
@@ -577,6 +578,52 @@ def cmd_dashboard(project_name=None):
 
     os.chdir(project_root)
     subprocess.run([sys.executable, str(dashboard_script)])
+
+
+def cmd_phase_set(phase_number, project_name=None):
+    """Set phase number and update all branch names to match"""
+    czarina_dir, project_root = get_project_context(project_name)
+
+    # Load config
+    config_file = czarina_dir / "config.json"
+    with open(config_file) as f:
+        config = json.load(f)
+
+    old_phase = config["project"].get("phase", "1")
+
+    print(f"🔄 Updating phase: {old_phase} → {phase_number}")
+    print()
+
+    # Update phase in config
+    config["project"]["phase"] = str(phase_number)
+
+    # Save updated config
+    with open(config_file, "w") as f:
+        json.dump(config, f, indent=2)
+
+    print(f"✅ Updated phase to {phase_number} in config.json")
+    print()
+
+    # Now validate and auto-fix branch names
+    orchestrator_dir = get_orchestrator_dir()
+    validate_script = orchestrator_dir / "czarina-core" / "validate-config.sh"
+
+    if validate_script.exists():
+        print("🔧 Auto-fixing branch names to match new phase...")
+        result = subprocess.run(
+            ["bash", str(validate_script), str(config_file), "--fix"],
+            cwd=project_root
+        )
+        if result.returncode == 0:
+            print()
+            print(f"✅ Phase {phase_number} set successfully!")
+            print(f"   All branch names updated to cz{phase_number}/*")
+        else:
+            print()
+            print("⚠️  Phase updated but branch validation had issues")
+    else:
+        print("⚠️  Validation script not found, branch names may need manual update")
+        print(f"   Quick fix: sed -i 's/cz{old_phase}\\//cz{phase_number}\\//g' {config_file}")
 
 
 def cmd_phase_close(project_name=None, keep_worktrees=False, force_clean=False):
@@ -1664,10 +1711,17 @@ def main():
         cmd_dashboard(project_name)
     elif command == "phase":
         if len(sys.argv) < 3:
-            print("❌ Usage: czarina phase <close|list>")
+            print("❌ Usage: czarina phase <set|close|list>")
             sys.exit(1)
         phase_cmd = sys.argv[2]
-        if phase_cmd == "close":
+        if phase_cmd == "set":
+            if len(sys.argv) < 4:
+                print("❌ Usage: czarina phase set <number>")
+                sys.exit(1)
+            phase_number = sys.argv[3]
+            project_name = sys.argv[4] if len(sys.argv) > 4 else None
+            cmd_phase_set(phase_number, project_name)
+        elif phase_cmd == "close":
             project_name = sys.argv[3] if len(sys.argv) > 3 else None
             cmd_phase_close(project_name)
         elif phase_cmd == "list":
@@ -1675,213 +1729,7 @@ def main():
             cmd_phase_list(project_name)
         else:
             print(f"❌ Unknown phase command: {phase_cmd}")
-            print("   Available: close, list")
-            sys.exit(1)
-    elif command in ["version", "-v", "--version"]:
-        print(f"Czarina v{CZARINA_VERSION}")
-        print("Multi-Agent Orchestration CLI")
-        print()
-        print("Repository: https://github.com/apathy-ca/czarina")
-        print("Documentation: https://github.com/apathy-ca/czarina/tree/main/docs")
-    elif command in ["-h", "--help", "help"]:
-        show_usage()
-    else:
-        print(f"❌ Unknown command: {command}")
-        show_usage()
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
-            print("❌ Usage: czarina analyze <plan-file> [--output file.json] [--init] [--interactive] [--go] [--dry-run]")
-            sys.exit(1)
-        plan_file = sys.argv[2]
-        output_file = None
-        auto_init = False
-        interactive = False
-        auto_go = False
-        dry_run = False
-        # Parse optional flags
-        for i in range(3, len(sys.argv)):
-            if sys.argv[i] == "--output" and i + 1 < len(sys.argv):
-                output_file = sys.argv[i + 1]
-            elif sys.argv[i] == "--init":
-                auto_init = True
-            elif sys.argv[i] == "--interactive":
-                interactive = True
-            elif sys.argv[i] == "--go":
-                auto_go = True
-            elif sys.argv[i] == "--dry-run":
-                dry_run = True
-        cmd_analyze(plan_file, output_file, auto_init, interactive, auto_go, dry_run)
-    elif command == "init":
-        # Check for --from-config, --from-plan, and --force flags
-        from_config = None
-        from_plan = None
-        project_name = None
-        force = False
-
-        i = 2
-        while i < len(sys.argv):
-            arg = sys.argv[i]
-            if arg == "--from-config":
-                if i + 1 < len(sys.argv):
-                    from_config = sys.argv[i + 1]
-                    i += 2
-                else:
-                    print("❌ --from-config requires a file path")
-                    sys.exit(1)
-            elif arg == "--from-plan" or arg == "--plan":
-                if i + 1 < len(sys.argv):
-                    from_plan = sys.argv[i + 1]
-                    i += 2
-                else:
-                    print("❌ --plan requires a file path")
-                    sys.exit(1)
-            elif arg == "--force":
-                force = True
-                i += 1
-            elif not arg.startswith("--"):
-                project_name = arg
-                i += 1
-            else:
-                i += 1
-
-        cmd_init(project_name, from_config, from_plan, force)
-    elif command == "launch":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        cmd_launch(project_name)
-    elif command == "status":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        cmd_status(project_name)
-    elif command == "dashboard":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        cmd_dashboard(project_name)
-    elif command == "phase":
-        if len(sys.argv) < 3:
-            print("❌ Usage: czarina phase <close|list> [options]")
-            sys.exit(1)
-        phase_cmd = sys.argv[2]
-        if phase_cmd == "close":
-            # Parse flags and project name
-            project_name = None
-            keep_worktrees = False
-            force_clean = False
-
-            for i in range(3, len(sys.argv)):
-                arg = sys.argv[i]
-                if arg == "--keep-worktrees":
-                    keep_worktrees = True
-                elif arg == "--force-clean":
-                    force_clean = True
-                elif not arg.startswith("--"):
-                    project_name = arg
-
-            cmd_phase_close(project_name, keep_worktrees, force_clean)
-        elif phase_cmd == "list":
-            project_name = sys.argv[3] if len(sys.argv) > 3 else None
-            cmd_phase_list(project_name)
-        else:
-            print(f"❌ Unknown phase command: {phase_cmd}")
-            print("   Available: close, list")
-            sys.exit(1)
-    elif command == "closeout":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        cmd_closeout(project_name)
-    elif command == "daemon":
-        if len(sys.argv) < 3:
-            print("❌ Usage: czarina daemon <start|stop|logs|status> [project]")
-            sys.exit(1)
-        subcommand = sys.argv[2]
-        project_name = sys.argv[3] if len(sys.argv) > 3 else None
-        if subcommand == "start":
-            cmd_daemon_start(project_name)
-        elif subcommand == "stop":
-            cmd_daemon_stop(project_name)
-        elif subcommand == "logs":
-            cmd_daemon_logs(project_name)
-        elif subcommand == "status":
-            cmd_daemon_status(project_name)
-        else:
-            print(f"❌ Unknown daemon subcommand: {subcommand}")
-            print("   Valid: start, stop, logs, status")
-            sys.exit(1)
-    elif command == "hopper":
-        # Pass remaining arguments to hopper script
-        hopper_args = sys.argv[2:] if len(sys.argv) > 2 else []
-        cmd_hopper(hopper_args)
-    elif command == "memory":
-        if len(sys.argv) < 3:
-            print("❌ Usage: czarina memory <init|query|rebuild|extract|core>")
-            sys.exit(1)
-        subcommand = sys.argv[2]
-        if subcommand == "init":
-            project_name = sys.argv[3] if len(sys.argv) > 3 else None
-            cmd_memory_init(project_name)
-        elif subcommand == "query":
-            if len(sys.argv) < 4:
-                print("❌ Usage: czarina memory query \"<text>\"")
-                sys.exit(1)
-            query_text = " ".join(sys.argv[3:])
-            # Check for optional --top-k flag
-            top_k = 5
-            if "--top-k" in sys.argv:
-                idx = sys.argv.index("--top-k")
-                if idx + 1 < len(sys.argv):
-                    try:
-                        top_k = int(sys.argv[idx + 1])
-                        # Remove --top-k and its value from query_text
-                        query_parts = sys.argv[3:]
-                        query_parts.remove("--top-k")
-                        query_parts.remove(sys.argv[idx + 1])
-                        query_text = " ".join(query_parts)
-                    except ValueError:
-                        pass
-            cmd_memory_query(query_text, top_k)
-        elif subcommand == "rebuild":
-            cmd_memory_rebuild()
-        elif subcommand == "extract":
-            cmd_memory_extract()
-        elif subcommand == "core":
-            cmd_memory_show_core()
-        else:
-            print(f"❌ Unknown memory subcommand: {subcommand}")
-            print("   Valid: init, query, rebuild, extract, core")
-            sys.exit(1)
-    elif command == "patterns":
-        if len(sys.argv) < 3:
-            print("❌ Usage: czarina patterns <update|version|pending|contribute>")
-            sys.exit(1)
-        subcommand = sys.argv[2]
-        if subcommand == "update":
-            cmd_patterns_update()
-        elif subcommand == "version":
-            cmd_patterns_version()
-        elif subcommand == "pending":
-            cmd_patterns_pending()
-        elif subcommand == "contribute":
-            cmd_patterns_contribute()
-        else:
-            print(f"❌ Unknown patterns subcommand: {subcommand}")
-            print("   Valid: update, version, pending, contribute")
-            sys.exit(1)
-    elif command == "deps":
-        if len(sys.argv) < 3:
-            print("❌ Usage: czarina deps <check|validate> [worker-id]")
-            sys.exit(1)
-        subcommand = sys.argv[2]
-        if subcommand == "check":
-            worker_id = sys.argv[3] if len(sys.argv) > 3 else None
-            cmd_deps_check(worker_id)
-        elif subcommand == "validate":
-            if len(sys.argv) < 4:
-                print("❌ Usage: czarina deps validate <worker-id>")
-                sys.exit(1)
-            worker_id = sys.argv[3]
-            cmd_deps_validate(worker_id)
-        else:
-            print(f"❌ Unknown deps subcommand: {subcommand}")
-            print("   Valid: check, validate")
+            print("   Available: set, close, list")
             sys.exit(1)
     elif command in ["version", "-v", "--version"]:
         print(f"Czarina v{CZARINA_VERSION}")

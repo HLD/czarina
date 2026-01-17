@@ -5,6 +5,73 @@ All notable changes to Czarina will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-01-17
+
+### Changed
+
+**Major CLI Simplification** - Streamlined interface for clarity and maintainability
+  - Reduced command count from 28 to 9 core commands (68% reduction)
+  - Removed commands: `analyze`, `daemon`, `hopper`, `memory`, `patterns`, `deps`
+  - Removed 903 lines of code (~53% reduction in CLI complexity)
+  - Single golden path for orchestration workflow
+  - Kept essential commands: init, launch, closeout, phase (set/close/list), status, dashboard, version
+
+**Integrated from v0.7.3** - LLM monitoring and validation enhancements
+  - Kept `czarina phase set` command for phase management
+  - Integrated LLM monitor daemon (launched via `czarina launch`, not separate CLI command)
+  - Enhanced validation system with agent availability checking
+  - All LLM monitor features available through launch script integration
+
+### Benefits
+  - Clearer workflow with less decision paralysis
+  - Fewer edge cases and potential bugs
+  - Easier to learn and maintain
+  - Advanced features (LLM monitor) integrated seamlessly without CLI bloat
+
+### Migration Guide
+  - `czarina daemon start` → LLM monitor now auto-launches with `czarina launch` (configure in config.json)
+  - `czarina analyze` → Use `czarina init <plan.md>` for automated setup
+  - `czarina hopper`, `czarina memory`, `czarina patterns`, `czarina deps` → Removed (specialized workflows)
+
+---
+
+## [0.7.3] - 2026-01-16
+
+### Added
+
+**LLM-Powered Intelligent Monitoring** - AI-driven worker analysis using Claude Haiku
+  - `czarina-core/llm-monitor-daemon.py` (735 lines) - Event-driven intelligent worker monitoring
+  - Real-time analysis of worker terminal output using Claude Haiku
+  - Event-driven architecture with `watchdog` for instant log-based triggers
+  - Intelligent action execution (auto-approve, send keys, flag for intervention)
+  - Comprehensive decision audit trail (human + machine readable)
+  - Cost tracking (~$0.002 per analysis, ~$0.40 per 8-hour orchestration)
+  - Configuration via `llm_monitor` section in config.json
+  - Full documentation: `czarina-core/docs/LLM_MONITOR.md`
+
+**Enhanced Validation System**
+  - Agent availability checking before launch (validates aider, claude, kilocode are installed)
+  - Auto-fix for branch naming mismatches with interactive prompt
+  - `czarina phase set <number>` - Set phase and auto-update all branch names
+  - Improved error messages with actionable quick-fix suggestions
+  - `--fix` flag for non-interactive auto-fixing
+
+**UX Improvements**
+  - Better output formatting in validation with clear window numbering
+  - Fixed worker 10+ appearing in main session (now correctly in mgmt session)
+  - Enhanced launch output showing explicit window assignments
+
+### Changed
+  - `validate-config.sh` - Added agent availability checks and auto-fix prompts
+  - `launch-project-v2.sh` - Fixed MAX_WORKERS_IN_MAIN enforcement, added LLM monitor integration
+  - `czarina` CLI - Added `phase set` command, updated help text
+
+### Fixed
+  - Worker 10+ now correctly placed in management session instead of main session (windows 0-9 limit)
+  - Branch naming validation now offers interactive fix instead of just failing
+
+---
+
 ## [0.7.2] - 2026-01-XX
 
 ### Added
