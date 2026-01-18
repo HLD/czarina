@@ -167,22 +167,23 @@ elif [ -d "$WORKTREES_DIR" ]; then
 
     cd "$PROJECT_ROOT"
 
+    # Disable exit-on-error for worktree cleanup to process all worktrees
+    set +e
+
     for worktree in "$WORKTREES_DIR"/*; do
         if [ ! -d "$worktree" ]; then
             continue
         fi
 
         worker_id=$(basename "$worktree")
-        cd "$worktree"
 
-        # Check for uncommitted changes
-        if git diff --quiet && git diff --cached --quiet; then
+        # Check for uncommitted changes (use -C to avoid cd issues)
+        if git -C "$worktree" diff --quiet && git -C "$worktree" diff --cached --quiet; then
             # Clean worktree
             echo "      ✅ $worker_id: Clean (removing)"
-            cd "$PROJECT_ROOT"
             git worktree remove "$worktree" 2>/dev/null || {
                 if [ "$FORCE_CLEAN" = true ]; then
-                    git worktree remove --force "$worktree"
+                    git worktree remove --force "$worktree" 2>/dev/null || true
                 else
                     echo "         ⚠️  Failed to remove (use --force-clean to override)"
                     ((DIRTY_COUNT++))
@@ -194,17 +195,17 @@ elif [ -d "$WORKTREES_DIR" ]; then
             # Dirty worktree
             if [ "$FORCE_CLEAN" = true ]; then
                 echo "      🗑️  $worker_id: Has changes (removing anyway - forced)"
-                cd "$PROJECT_ROOT"
-                git worktree remove --force "$worktree"
+                git worktree remove --force "$worktree" 2>/dev/null || true
                 ((CLEAN_COUNT++))
             else
                 echo "      ⚠️  $worker_id: Has uncommitted changes (keeping)"
                 ((DIRTY_COUNT++))
             fi
         fi
-
-        cd "$PROJECT_ROOT"
     done
+
+    # Re-enable exit-on-error
+    set -e
 
     echo ""
     echo "   📦 Removed $CLEAN_COUNT worktree(s), kept $DIRTY_COUNT with changes"
@@ -221,7 +222,7 @@ elif [ -d "$WORKTREES_DIR" ]; then
     fi
 
     # Prune worktree references
-    git worktree prune
+    git worktree prune 2>/dev/null || true
 
     # Remove worktrees directory if empty
     if [ -d "$WORKTREES_DIR" ] && [ -z "$(ls -A "$WORKTREES_DIR")" ]; then
@@ -241,15 +242,15 @@ if [ -f "${CZARINA_DIR}/config.json" ]; then
     echo "   ✅ Config cleared"
 fi
 
-# Clear workers (already archived)
+# Clear workers directory entirely (already archived)
 if [ -d "${CZARINA_DIR}/workers" ]; then
-    rm -rf "${CZARINA_DIR}/workers"/*
+    rm -rf "${CZARINA_DIR}/workers"
     echo "   ✅ Worker prompts cleared"
 fi
 
-# Clear status
+# Clear status directory entirely (already archived)
 if [ -d "${CZARINA_DIR}/status" ]; then
-    rm -rf "${CZARINA_DIR}/status"/*
+    rm -rf "${CZARINA_DIR}/status"
     echo "   ✅ Status cleared"
 fi
 
