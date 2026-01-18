@@ -471,8 +471,11 @@ def cmd_launch(project_name=None):
 
     project_slug = config["project"]["slug"]
     workers = config["workers"]
+    version = config['project'].get('version', 'unknown')
+    phase = config['project'].get('phase', 'unknown')
 
     print(f"🚀 Launching: {config['project']['name']}")
+    print(f"   Version: {version} | Phase: {phase}")
     print(f"   Workers: {len(workers)}")
     print(f"   Project: {project_root}")
     print()
@@ -559,7 +562,11 @@ def cmd_status(project_name=None):
     with open(config_file) as f:
         config = json.load(f)
 
+    version = config['project'].get('version', 'unknown')
+    phase = config['project'].get('phase', 'unknown')
+
     print(f"📊 Status: {config['project']['name']}")
+    print(f"   Version: {version} | Phase: {phase}")
     print(f"   Location: {project_root}")
     print(f"   Workers: {len(config['workers'])}")
     print()
