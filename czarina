@@ -458,6 +458,14 @@ def cmd_launch(project_name=None):
 
     # Load config
     config_file = czarina_dir / "config.json"
+
+    if not config_file.exists():
+        print("❌ No active phase found")
+        print()
+        print("💡 Initialize a new phase first:")
+        print("   czarina init <plan-file>")
+        sys.exit(1)
+
     with open(config_file) as f:
         config = json.load(f)
 
@@ -539,6 +547,15 @@ def cmd_status(project_name=None):
     czarina_dir, project_root = get_project_context(project_name)
 
     config_file = czarina_dir / "config.json"
+
+    if not config_file.exists():
+        print("❌ No active phase found")
+        print()
+        print("💡 Options:")
+        print("   • Start a new phase:  czarina init <plan-file>")
+        print("   • View past phases:   czarina phase list")
+        sys.exit(1)
+
     with open(config_file) as f:
         config = json.load(f)
 
