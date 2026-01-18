@@ -1308,8 +1308,15 @@ def parse_worker_from_section(section_text, worker_num):
         deps_text = deps_match.group(1).strip()
         # Check if dependencies text starts with "None" (case insensitive)
         if not deps_text.lower().startswith("none"):
+            # Handle bracket notation: [worker1, worker2] or []
+            if deps_text.startswith('[') and deps_text.endswith(']'):
+                deps_text = deps_text[1:-1].strip()
+
             # Parse dependencies (could be comma-separated or list)
-            worker["dependencies"] = [d.strip() for d in re.split(r'[,;]', deps_text) if d.strip()]
+            if deps_text:  # Only split if there's content after removing brackets
+                worker["dependencies"] = [d.strip() for d in re.split(r'[,;]', deps_text) if d.strip()]
+            else:
+                worker["dependencies"] = []
 
     # Extract mission
     mission_match = re.search(r'\*\*Mission:\*\*\s+(.+?)(?:\n\n|\*\*)', section_text, re.DOTALL)
