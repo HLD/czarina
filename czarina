@@ -1423,7 +1423,8 @@ def generate_config_from_plan(plan_data, project_root):
             "agent": worker["agent"],
             "branch": f"cz{phase}/feat/{worker['id']}",
             "description": worker["description"][:200],  # Limit length
-            "dependencies": worker["dependencies"]
+            "dependencies": worker["dependencies"],
+            "phase": phase
         }
         config["workers"].append(worker_config)
 
