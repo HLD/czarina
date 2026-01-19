@@ -5,16 +5,16 @@ All notable changes to Czarina will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-01-17
+## [0.8.0] - 2026-01-18
 
 ### Changed
 
 **Major CLI Simplification** - Streamlined interface for clarity and maintainability
-  - Reduced command count from 28 to 9 core commands (68% reduction)
+  - Reduced command count from 28 to 8 core commands (71% reduction)
   - Removed commands: `analyze`, `daemon`, `hopper`, `memory`, `patterns`, `deps`
   - Removed 903 lines of code (~53% reduction in CLI complexity)
   - Single golden path for orchestration workflow
-  - Kept essential commands: init, launch, closeout, phase (set/close/list), status, dashboard, version
+  - Core commands: init, launch, closeout, phase (set/close/list), status, dashboard, version
 
 **Integrated from v0.7.3** - LLM monitoring and validation enhancements
   - Kept `czarina phase set` command for phase management
@@ -22,11 +22,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced validation system with agent availability checking
   - All LLM monitor features available through launch script integration
 
+### Added
+
+**User Experience Improvements**
+  - Display version and phase in `czarina status` and `czarina launch` outputs
+  - Helpful error messages when config.json is missing (no more Python tracebacks)
+  - Clear guidance for next steps in error messages
+
+**Parser Enhancements**
+  - Support for bracket notation in dependencies: `[]` and `[worker1, worker2]`
+  - Automatic phase field added to workers during `czarina init`
+
+### Fixed
+
+**Phase Management**
+  - `phase-close.sh` now completes all 5 cleanup steps reliably
+  - Added error guards (`set +e`/`set -e`) to prevent early exit
+  - Improved tmux session cleanup loop robustness
+  - Workers directory and config.json properly removed after phase close
+  - Worktrees cleaned up correctly with `--force` option support
+
+**Configuration**
+  - Dependencies no longer stored as strings like `"[worker1]"`
+  - Phase field now properly set on workers for launch filtering
+
+### Testing
+
+**Real-World Validation** - HLDemo multi-phase project
+  - 3 phases, 17 workers total (10 + 4 + 3)
+  - Full React application with 34 chapters produced
+  - All phase transitions tested successfully
+  - See `examples/HLDEMO_WORKFLOW.md` for detailed example
+
 ### Benefits
   - Clearer workflow with less decision paralysis
   - Fewer edge cases and potential bugs
   - Easier to learn and maintain
   - Advanced features (LLM monitor) integrated seamlessly without CLI bloat
+  - Robust phase management for multi-phase projects
 
 ### Migration Guide
   - `czarina daemon start` → LLM monitor now auto-launches with `czarina launch` (configure in config.json)
