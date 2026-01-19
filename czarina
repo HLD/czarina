@@ -6,8 +6,13 @@ Simple interface for managing multi-agent orchestration projects
 Version: 0.8.0
 
 Usage:
-    czarina plan <project.md>   - Generate implementation plan from project plan (AI-assisted)
+    czarina plan <project.md> [--style agile|waterfall|lean|balanced] [--output FILE]
+                                - Generate implementation plan from project plan (AI-assisted)
+    czarina plan validate <plan.md>
+                                - Validate implementation plan quality
     czarina init <plan.md>      - Initialize orchestration from implementation plan
+    czarina init <project.md> --assist
+                                - Auto-generate plan then initialize (one-shot)
     czarina launch              - Launch Czar + workers + daemons + dashboard
     czarina closeout            - Stop all workers and clean up completely
     czarina phase set <number>  - Set phase number and update branch names
@@ -16,6 +21,12 @@ Usage:
     czarina status              - Show project status
     czarina dashboard           - Live monitoring dashboard
     czarina version             - Show version information
+
+Planning Styles:
+    agile      - Iterative, small workers (5-8), flexible
+    waterfall  - Sequential, phase-based (8-12), structured
+    lean       - Minimal workers (4-6), maximum value
+    balanced   - Pragmatic mix (6-10) - default
 """
 
 CZARINA_VERSION = "0.8.0"
@@ -327,13 +338,175 @@ You are the **Czar** - the orchestration coordinator for this multi-agent projec
     print("  2. czarina launch")
 
 
-def cmd_plan(project_plan_file, output_file=None):
-    """Generate implementation plan from project plan using AI agent"""
+def validate_plan(plan_file):
+    """Validate an implementation plan for quality and completeness
+
+    Returns: (is_valid, issues, warnings)
+    """
+    plan_path = Path(plan_file)
+    if not plan_path.exists():
+        return False, [f"Plan file not found: {plan_file}"], []
+
+    try:
+        with open(plan_path, 'r') as f:
+            content = f.read()
+    except Exception as e:
+        return False, [f"Could not read plan file: {e}"], []
+
+    issues = []
+    warnings = []
+
+    # Check for required sections
+    required_sections = [
+        ("# ", "Project title"),
+        ("## Project Overview", "Project Overview section"),
+        ("## Phase", "Phase section"),
+        ("### Worker", "At least one Worker definition"),
+        ("## Success Criteria", "Success Criteria section"),
+    ]
+
+    for pattern, name in required_sections:
+        if pattern not in content:
+            issues.append(f"Missing required section: {name}")
+
+    # Extract workers
+    import re
+    worker_pattern = r'### Worker \d+: `([a-z0-9-]+)`'
+    workers = re.findall(worker_pattern, content)
+
+    if not workers:
+        issues.append("No workers found in plan")
+        return len(issues) == 0, issues, warnings
+
+    # Validate worker IDs
+    for worker_id in workers:
+        if '_' in worker_id:
+            issues.append(f"Worker ID '{worker_id}' uses underscores (should use dashes)")
+        if worker_id != worker_id.lower():
+            issues.append(f"Worker ID '{worker_id}' is not lowercase")
+        if len(worker_id) < 3:
+            warnings.append(f"Worker ID '{worker_id}' is very short (consider more descriptive name)")
+        if len(worker_id) > 40:
+            warnings.append(f"Worker ID '{worker_id}' is very long (consider shorter name)")
+
+    # Check for duplicate worker IDs
+    if len(workers) != len(set(workers)):
+        duplicates = [w for w in workers if workers.count(w) > 1]
+        issues.append(f"Duplicate worker IDs found: {', '.join(set(duplicates))}")
+
+    # Validate each worker has required fields
+    for worker_id in workers:
+        worker_section = content.split(f'### Worker')[content.split(f'### Worker').index(f' {workers.index(worker_id)+1}: `{worker_id}`'):]
+        if len(worker_section) > 1:
+            worker_section = worker_section[0]
+        else:
+            worker_section = worker_section[0]
+
+        required_fields = [
+            ("**Role:**", f"Worker '{worker_id}' missing Role field"),
+            ("**Agent:**", f"Worker '{worker_id}' missing Agent field"),
+            ("**Branch:**", f"Worker '{worker_id}' missing Branch field"),
+            ("**Dependencies:**", f"Worker '{worker_id}' missing Dependencies field"),
+            ("**Mission:**", f"Worker '{worker_id}' missing Mission field"),
+            ("**First Action:**", f"Worker '{worker_id}' missing First Action field"),
+            ("**Tasks:**", f"Worker '{worker_id}' missing Tasks field"),
+            ("**Deliverable:**", f"Worker '{worker_id}' missing Deliverable field"),
+        ]
+
+        for field, error_msg in required_fields:
+            if field not in worker_section:
+                issues.append(error_msg)
+
+    # Check for common anti-patterns
+    if "implement feature" in content.lower() or "implement the" in content.lower():
+        warnings.append("Found vague task descriptions like 'implement feature' (be more specific)")
+
+    if "read the docs" in content.lower() or "read documentation" in content.lower():
+        warnings.append("Found generic First Actions like 'read the docs' (be more specific)")
+
+    # Check worker count
+    worker_count = len(workers)
+    if worker_count < 2:
+        warnings.append(f"Only {worker_count} worker (consider if this is complex enough for orchestration)")
+    elif worker_count > 15:
+        warnings.append(f"Plan has {worker_count} workers (consider if some could be combined)")
+
+    # Check for dependency validation
+    dependency_pattern = r'\*\*Dependencies:\*\* (.+)'
+    dependencies = re.findall(dependency_pattern, content)
+    for dep_line in dependencies:
+        if dep_line.strip() != "None":
+            deps = [d.strip() for d in dep_line.replace('`', '').split(',')]
+            for dep in deps:
+                if dep and dep not in workers and dep.lower() != "none":
+                    issues.append(f"Referenced dependency '{dep}' does not exist as a worker")
+
+    is_valid = len(issues) == 0
+    return is_valid, issues, warnings
+
+
+def get_planning_style_guidance(style):
+    """Get planning methodology guidance based on style"""
+    styles = {
+        "agile": """**Agile Methodology:**
+- Create small, iterative workers (5-8 workers preferred)
+- Focus on MVPs and incremental delivery
+- Workers should deliver working increments
+- Emphasize flexibility and iteration
+- Include regular integration/testing workers between feature workers
+- Dependencies should be loose to allow parallel work
+- Plan for frequent merges and iterations""",
+
+        "waterfall": """**Waterfall Methodology:**
+- Create sequential, phase-based workers (8-12 workers)
+- Clear dependencies: research → design → implementation → testing → docs
+- Each worker completes fully before next begins
+- Strong emphasis on documentation and handoffs
+- Include dedicated QA worker after all implementation
+- Final integration worker depends on ALL previous workers
+- Plan assumes requirements are stable""",
+
+        "lean": """**Lean Methodology:**
+- Minimize workers (4-6 highly focused workers)
+- Eliminate waste - only essential tasks
+- Workers should be cross-functional (one worker = feature complete)
+- Deliver maximum value with minimum effort
+- Reduce handoffs and dependencies
+- Focus on flow and fast delivery
+- Each worker should produce customer value""",
+
+        "balanced": """**Balanced Approach:**
+- Mix of parallel and sequential work (6-10 workers)
+- Group related tasks into cohesive workers
+- Balance between planning and flexibility
+- Some workers can run in parallel, others sequential
+- Include both research and implementation workers
+- QA and docs integrated throughout, not just at end
+- Pragmatic dependencies based on actual constraints"""
+    }
+    return styles.get(style, styles["balanced"])
+
+
+def cmd_plan(project_plan_file, output_file=None, style="balanced"):
+    """Generate implementation plan from project plan using AI agent
+
+    Args:
+        project_plan_file: Path to project plan document
+        output_file: Output path for implementation plan (default: IMPLEMENTATION_PLAN.md)
+        style: Planning style - "agile", "waterfall", "lean", or "balanced" (default)
+    """
     current_dir = Path.cwd()
     project_plan_path = Path(project_plan_file).resolve()
 
     if not project_plan_path.exists():
         print(f"❌ Project plan file not found: {project_plan_file}")
+        sys.exit(1)
+
+    # Validate style
+    valid_styles = ["agile", "waterfall", "lean", "balanced"]
+    if style not in valid_styles:
+        print(f"❌ Invalid style: {style}")
+        print(f"   Valid styles: {', '.join(valid_styles)}")
         sys.exit(1)
 
     # Default output file
@@ -346,19 +519,29 @@ def cmd_plan(project_plan_file, output_file=None):
     print()
     print(f"📄 Input: {project_plan_file}")
     print(f"📝 Output: {output_file}")
+    print(f"🎯 Style: {style}")
     print()
     print("🚀 Launching Claude Code agent to analyze project plan...")
     print("   The agent will:")
     print("   • Read your project plan")
     print("   • Identify milestones and deliverables")
     print("   • Break down work into logical workers")
+    print(f"   • Apply {style} planning methodology")
     print("   • Generate implementation plan with czarina format")
     print()
     print("=" * 60)
     print()
 
+    # Get style-specific guidance
+    style_guidance = get_planning_style_guidance(style)
+
     # Create prompt for Claude Code agent
     prompt = f"""I need you to analyze a project plan and generate a czarina implementation plan with proper worker breakdown.
+
+**Planning Style: {style.upper()}**
+{style_guidance}
+
+
 
 **Your Task:**
 1. Read the project plan at: {project_plan_path}
@@ -390,13 +573,43 @@ Each worker must follow this format:
 ```
 
 **Worker Breakdown Guidelines:**
-- Create 5-12 workers (typically 6-10 for most projects)
-- Assign roles: Code (implementation), QA (testing), Docs (documentation), Integration (merge/release)
-- Map dependencies based on component relationships
-- Workers without dependencies can run in parallel
-- Final worker should be Integration with dependencies on all others
-- Use branch naming: cz1/feat/* for Phase 1 workers
-- Omnibus branch: cz1/release/vX.Y.Z
+
+**Size & Scope:**
+- Create 4-12 workers depending on project complexity and planning style
+- Each worker should be 1-3 days of focused work (not weeks)
+- Workers should have clear, single-purpose missions
+- Break large tasks into multiple workers rather than one massive worker
+- Avoid workers with >15 tasks (split into multiple workers if needed)
+
+**Roles & Agents:**
+- Code: Implementation work (use Aider for focused coding, Claude Code for complex design)
+- QA: Testing, validation, quality assurance (use Claude Code for comprehensive testing)
+- Docs: Documentation, guides, examples (use Claude Code for writing)
+- Integration: Merging, releasing, coordination (use Claude Code for orchestration)
+- Choose agents based on task type, not arbitrarily
+
+**Dependencies & Parallelism:**
+- Map dependencies based on actual technical constraints, not assumptions
+- Workers with NO shared files can run in parallel
+- Research/design workers typically have no dependencies (parallel)
+- Implementation workers depend on design/research completion
+- QA workers depend on implementation workers
+- Final Integration worker depends on ALL others
+- Avoid unnecessary sequential dependencies - maximize parallel work
+
+**Branch Naming:**
+- Use cz1/feat/* for Phase 1 feature workers
+- Use cz1/fix/* for bugfix workers
+- Use cz1/docs/* for documentation workers
+- Omnibus branch: cz1/release/vX.Y.Z (created by Integration worker)
+
+**Anti-Patterns to Avoid:**
+- ❌ Vague missions like "implement feature" (be specific!)
+- ❌ Workers with 20+ tasks (split them up!)
+- ❌ All workers depending on each other (identify true parallelism)
+- ❌ Workers that span multiple concerns (keep focused)
+- ❌ Generic "First Action" like "Read the docs" (be concrete!)
+- ❌ Missing deliverables section (every worker produces something!)
 
 **Implementation Plan Structure:**
 
@@ -457,14 +670,53 @@ Each worker must follow this format:
 **Status:** Ready for Czarina Initialization
 ```
 
-**Important:**
-- Worker IDs must be lowercase with dashes (e.g., `rust-foundation`, `python-proxy`)
-- Be specific in tasks - avoid vague items like "implement feature"
-- First Action should be concrete (e.g., "Read X file, create Y structure, verify Z")
-- Dependencies should reference actual worker IDs
-- Write the output to: {output_path}
+**Quality Checklist - Your plan MUST have:**
+- [ ] Worker IDs are lowercase-with-dashes (e.g., `rust-foundation`, `python-proxy`)
+- [ ] Each worker has a specific, actionable mission (not vague)
+- [ ] First Action is concrete and immediately actionable
+- [ ] Tasks are specific (avoid "implement X" - say HOW to implement)
+- [ ] Dependencies reference actual worker IDs that exist in the plan
+- [ ] Deliverables are concrete artifacts (files, docs, code, tests)
+- [ ] Worker count appropriate for project scope and planning style
+- [ ] Parallel workers identified (maximize concurrent work)
+- [ ] Each worker takes 1-3 days max (split if longer)
+- [ ] Final Integration worker depends on all implementation workers
 
-Please analyze the project plan and generate the implementation plan now."""
+**Example Good vs Bad Workers:**
+
+❌ BAD:
+```
+### Worker 1: `backend`
+**Mission:** Implement the backend
+**First Action:** Start working on backend
+**Tasks:** 1. Write code 2. Test it 3. Deploy
+```
+
+✅ GOOD:
+```
+### Worker 1: `user-auth-api`
+**Mission:** Implement user authentication API endpoints (register, login, logout) using JWT tokens with bcrypt password hashing, following REST conventions and including comprehensive error handling
+**First Action:** Read existing API structure in src/api/, create auth/ subdirectory, and set up auth.routes.ts with endpoint stubs
+**Tasks:**
+1. Create User model with email, password_hash, created_at fields
+2. Implement POST /api/auth/register endpoint with email validation
+3. Implement POST /api/auth/login with JWT generation (24h expiry)
+4. Implement POST /api/auth/logout with token invalidation
+5. Add bcrypt password hashing (salt rounds: 12)
+6. Create middleware for JWT verification
+7. Add unit tests for each endpoint (>80% coverage)
+8. Add integration tests for auth flow
+9. Document API endpoints in OpenAPI spec
+**Deliverable:** User authentication API in src/api/auth/ with full test coverage and API documentation
+```
+
+**Output Instructions:**
+- Write the complete implementation plan to: {output_path}
+- Follow the exact structure shown above
+- Include all required sections (Project Overview, Workers, Success Criteria, etc.)
+- Make sure the plan is ready for: czarina init IMPLEMENTATION_PLAN.md
+
+Please analyze the project plan and generate a high-quality implementation plan now."""
 
     # Launch Claude Code agent
     orchestrator_dir = get_orchestrator_dir()
@@ -490,6 +742,51 @@ Please analyze the project plan and generate the implementation plan now."""
         print()
         print(f"❌ Error launching agent: {e}")
         sys.exit(1)
+
+
+def cmd_plan_validate(plan_file):
+    """Validate an implementation plan"""
+    print("🔍 Validating Implementation Plan")
+    print("=" * 60)
+    print()
+    print(f"📄 Plan: {plan_file}")
+    print()
+
+    is_valid, issues, warnings = validate_plan(plan_file)
+
+    if issues:
+        print("❌ Validation Issues Found:")
+        print()
+        for i, issue in enumerate(issues, 1):
+            print(f"  {i}. {issue}")
+        print()
+
+    if warnings:
+        print("⚠️  Warnings:")
+        print()
+        for i, warning in enumerate(warnings, 1):
+            print(f"  {i}. {warning}")
+        print()
+
+    if is_valid and not warnings:
+        print("✅ Plan is valid and ready for initialization!")
+        print()
+        print("Next steps:")
+        print(f"  czarina init {plan_file}")
+    elif is_valid and warnings:
+        print("✅ Plan is valid (with warnings)")
+        print()
+        print("Consider addressing warnings, then:")
+        print(f"  czarina init {plan_file}")
+    else:
+        print("❌ Plan has validation issues")
+        print()
+        print("Please fix the issues above, then run:")
+        print(f"  czarina plan validate {plan_file}")
+        sys.exit(1)
+
+    print()
+    print("=" * 60)
 
 
 def cmd_init(plan_file, auto_assist=False):
@@ -1908,6 +2205,11 @@ def show_usage():
     print("\nExamples:")
     print("  # Generate implementation plan from project plan (AI-assisted)")
     print("  czarina plan docs/PROJECT_PLAN.md")
+    print("  czarina plan docs/PROJECT_PLAN.md --style agile")
+    print("  czarina plan docs/PROJECT_PLAN.md --output IMPL_PLAN.md")
+    print("")
+    print("  # Validate an implementation plan")
+    print("  czarina plan validate IMPLEMENTATION_PLAN.md")
     print("")
     print("  # Initialize from an implementation plan")
     print("  cd ~/my-project")
@@ -1941,11 +2243,43 @@ def main():
 
     if command == "plan":
         if len(sys.argv) < 3:
-            print("❌ Usage: czarina plan <project-plan.md> [output-file]")
+            print("❌ Usage: czarina plan <project-plan.md> [options]")
+            print("   OR:    czarina plan validate <implementation-plan.md>")
+            print()
+            print("Options:")
+            print("  --style <agile|waterfall|lean|balanced>  Planning methodology (default: balanced)")
+            print("  --output <file>                          Output file (default: IMPLEMENTATION_PLAN.md)")
             sys.exit(1)
-        project_plan_file = sys.argv[2]
-        output_file = sys.argv[3] if len(sys.argv) > 3 else None
-        cmd_plan(project_plan_file, output_file)
+
+        # Check for validate subcommand
+        if sys.argv[2] == "validate":
+            if len(sys.argv) < 4:
+                print("❌ Usage: czarina plan validate <implementation-plan.md>")
+                sys.exit(1)
+            plan_file = sys.argv[3]
+            cmd_plan_validate(plan_file)
+        else:
+            # Generate plan
+            project_plan_file = sys.argv[2]
+
+            # Parse options
+            output_file = None
+            style = "balanced"
+            i = 3
+            while i < len(sys.argv):
+                if sys.argv[i] == "--style" and i + 1 < len(sys.argv):
+                    style = sys.argv[i + 1]
+                    i += 2
+                elif sys.argv[i] == "--output" and i + 1 < len(sys.argv):
+                    output_file = sys.argv[i + 1]
+                    i += 2
+                else:
+                    # Assume it's output file (legacy support)
+                    if output_file is None:
+                        output_file = sys.argv[i]
+                    i += 1
+
+            cmd_plan(project_plan_file, output_file, style)
     elif command == "init":
         if len(sys.argv) < 3:
             print("❌ Usage: czarina init <plan.md> [--assist]")
