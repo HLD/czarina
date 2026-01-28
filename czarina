@@ -897,16 +897,55 @@ def cmd_init(plan_file):
         planning_guidance_extra = """- **Agent knowledge**: Enable agent_rules in config to give workers 43K+ lines of best practices
 - **Rules auto-load**: Workers automatically get role-appropriate rules (code→python/testing, qa→testing/security, etc.)"""
 
-        agent_knowledge_integration = f"""## Agent Knowledge Integration (RECOMMENDED)
+        agent_knowledge_integration = f"""## Agent Knowledge Integration (CRITICAL!)
 
-If you enable agent_rules in config.json, workers will automatically receive:
-- **Python workers** get: python-standards, design-patterns, testing, security rules
-- **QA workers** get: testing rules, security validation, coverage requirements
-- **Architect workers** get: design-patterns, documentation, orchestration patterns
-- **Integration workers** get: git workflows, testing patterns, orchestration
+**IMPORTANT: Create custom knowledge files for each worker**
 
-The library contains 43K+ lines of production-tested best practices from real projects.
-Reference: `{agent_knowledge_dir}/core-rules/INDEX.md` for full rule catalog.
+For each worker, create `.czarina/workers/<worker-id>-knowledge.md` with:
+
+1. **Browse agent-knowledge** at `{agent_knowledge_dir}/`
+2. **Select relevant rules** based on worker's role and specific tasks:
+   - Python code workers: core-rules/python-standards/, design-patterns/, testing/
+   - QA/testing workers: core-rules/testing/, security/, patterns/testing-patterns/
+   - Frontend workers: patterns/tool-use/, design-patterns/, testing/
+   - Integration workers: core-rules/workflows/, orchestration/, patterns/git-workflows/
+   - Documentation workers: core-rules/documentation/, templates/
+
+3. **Extract and condense** the most relevant sections:
+   - Keep each knowledge file under 10KB (about 2-3 pages)
+   - Include only what's directly applicable to this worker's tasks
+   - Condense verbose sections, keep critical patterns/examples
+   - Format as markdown with clear sections
+
+4. **Structure the knowledge file**:
+```markdown
+# Knowledge Base: <worker-id>
+
+## Relevant Standards
+[Condensed excerpts from core-rules matching this worker's language/domain]
+
+## Key Patterns
+[Specific patterns from patterns/ that apply to this worker's tasks]
+
+## Best Practices
+[Critical do's and don'ts for this worker's role]
+
+## Templates & Examples
+[Relevant code templates or configuration examples]
+
+## References
+- Full rules at: {agent_knowledge_dir}/core-rules/
+- Patterns at: {agent_knowledge_dir}/patterns/
+```
+
+**Example**: For a Python backend worker:
+- Extract async patterns from `python-standards/ASYNC_PATTERNS.md`
+- Include error handling from `python-standards/ERROR_HANDLING.md`
+- Add API patterns from `design-patterns/`
+- Include testing patterns from `testing/`
+- Keep total under 10KB
+
+This gives each worker **exactly the knowledge they need** without context overflow!
 """
     else:
         agent_knowledge_section = """### Agent Knowledge Library
@@ -928,7 +967,8 @@ You are helping to set up a Czarina multi-agent orchestration from an implementa
 
 Read the implementation plan at `{plan_path}` and create a complete Czarina orchestration setup with:
 1. `.czarina/config.json` - Full project configuration
-2. `.czarina/workers/*.md` - Worker identity files with missions and objectives
+2. `.czarina/workers/<worker-id>.md` - Worker identity files with missions and objectives
+3. `.czarina/workers/<worker-id>-knowledge.md` - Custom knowledge tailored for each worker
 
 ## Reference Documentation
 
@@ -1019,6 +1059,19 @@ Each worker needs a clear, actionable identity file:
 
 <Clear 2-3 sentence mission statement>
 
+## 📚 Knowledge Base
+
+You have custom knowledge tailored for your role and tasks at:
+`.czarina/workers/<worker-id>-knowledge.md`
+
+This includes:
+- Relevant standards and patterns from agent-knowledge library
+- Best practices specific to your tasks
+- Code templates and examples
+- Common pitfalls to avoid
+
+**Read this before starting work** to understand the patterns and practices you should follow.
+
 ## 🚀 YOUR FIRST ACTION
 
 <CRITICAL: Tell the worker EXACTLY what to do first - be specific!>
@@ -1060,8 +1113,9 @@ Then review the API requirements and create a task list.
 5. **Plan dependencies** - What order must work happen in?
 6. **Estimate token budgets** - Rough estimates based on complexity
 7. **Create config.json** - Follow examples, include all required fields
-8. **Create worker files** - Each with clear mission and strong first action
-9. **Verify** - Check branch names, dependencies, required fields
+8. **Create worker identity files** - Each with clear mission and strong first action
+9. **Create custom knowledge files** - For EACH worker, browse agent-knowledge and extract relevant rules/patterns (see Agent Knowledge Integration section)
+10. **Verify** - Check branch names, dependencies, required fields, knowledge files created
 
 ## Planning Guidance
 
@@ -1087,7 +1141,8 @@ Read the docs, study the examples, and create an excellent orchestration setup!"
     print()
     print("💡 Claude will help you create:")
     print("   - .czarina/config.json")
-    print("   - .czarina/workers/*.md files")
+    print("   - .czarina/workers/<worker-id>.md (identity files)")
+    print("   - .czarina/workers/<worker-id>-knowledge.md (custom knowledge for each worker)")
     print()
 
     # Show agent-knowledge status
@@ -1112,8 +1167,9 @@ Read the docs, study the examples, and create an excellent orchestration setup!"
         print()
         print("📋 Next steps:")
         print("   1. Verify .czarina/config.json was created")
-        print("   2. Verify .czarina/workers/*.md files exist")
-        print("   3. Launch the orchestration:")
+        print("   2. Verify .czarina/workers/<worker-id>.md files exist (identity)")
+        print("   3. Verify .czarina/workers/<worker-id>-knowledge.md files exist (custom knowledge)")
+        print("   4. Launch the orchestration:")
         print("      czarina launch")
         print()
         print("=" * 60)
