@@ -623,6 +623,28 @@ Each worker must follow this format:
 - Use cz1/docs/* for documentation workers
 - Omnibus branch: cz1/release/vX.Y.Z (created by Integration worker)
 
+**Wiggum Mode (Iterative Retry Workers):**
+When a task is well-suited to automated retry with verification (bug fixes, test-driven
+development, performance optimization), recommend using Wiggum Mode instead of a regular worker.
+
+Wiggum Mode spawns disposable AI workers ("Ralphs") in isolated worktrees with automatic
+retry, cycle detection, and verification gates. Suggest it in the plan when:
+- The task has a clear, automatable verification command (e.g., `npm test`, `go test ./...`)
+- The task is self-contained and doesn't require human judgment to verify
+- Retrying with accumulated error context is likely to converge on a solution
+
+In the plan, mark such tasks with: `**Mode:** Wiggum` and include the verify command.
+Example:
+```markdown
+### Worker N: `fix-auth-tests`
+**Role:** Code
+**Mode:** Wiggum
+**Verify:** `npm test -- --grep auth`
+**Mission:** Fix failing authentication tests by resolving JWT token validation errors
+```
+
+The user can then run: `czarina wiggum 'Fix auth tests' --verify-command 'npm test -- --grep auth'`
+
 **Anti-Patterns to Avoid:**
 - ❌ Vague missions like "implement feature" (be specific!)
 - ❌ Workers with 20+ tasks (split them up!)
@@ -994,6 +1016,7 @@ You have access to comprehensive Czarina documentation and examples:
 - `{orchestrator_dir}/examples/config-basic.json` - Minimal config
 - `{orchestrator_dir}/examples/config-with-memory.json` - Memory system enabled
 - `{orchestrator_dir}/examples/config-with-rules.json` - Agent rules enabled
+- `{orchestrator_dir}/examples/config-with-wiggum.json` - Wiggum Mode (iterative retry workers)
 - `{orchestrator_dir}/czarina-core/templates/worker-identity-template.md` - Worker file template
 
 {agent_knowledge_section}
@@ -1039,9 +1062,27 @@ You have access to comprehensive Czarina documentation and examples:
   "daemon": {{
     "enabled": true,
     "auto_approve": ["read", "write", "edit", "commit"]
+  }},
+  "wiggum": {{  // OPTIONAL: Include if plan has Wiggum Mode workers
+    "agent_command": "claude -p .czarina/mission_brief.md",
+    "sandbox_prefix": ".wiggum_sandboxes/",
+    "default_retries": 5,
+    "timeout_seconds": 300,
+    "protected_files": [".env", "package-lock.json"],
+    "verify_command": "npm test",  // Default verify command for all wiggum tasks
+    "merge_strategy": "squash"
   }}
 }}
 ```
+
+### Wiggum Mode Workers
+
+If any worker in the plan is marked with `**Mode:** Wiggum`, include the `wiggum` section
+in config.json. Set `verify_command` to the most common verification command across wiggum
+workers. Individual wiggum tasks can override this at runtime.
+
+Wiggum workers don't need traditional worker identity files - they run via:
+`czarina wiggum '<task prompt>' --verify-command '<command>'`
 
 ### Branch Naming (CRITICAL - WILL FAIL IF WRONG!)
 - Worker branches: `cz<phase>/feat/<worker-id>`
@@ -1140,6 +1181,9 @@ Then review the API requirements and create a task list.
 - **Multi-phase project**: Phase 1: foundation, Phase 2: features, Phase 3: polish
 - **Parallel workers**: Frontend + backend can work in parallel if both depend on architecture
 - **Integration worker**: Last worker that merges all branches and does final QA
+- **Wiggum Mode**: For test-driven bug fixes or tasks with clear pass/fail verification, use
+  `czarina wiggum` instead of a long-running worker. If the plan marks a worker with
+  `**Mode:** Wiggum`, add the `wiggum` section to config.json (see examples/config-with-wiggum.json)
 
 {agent_knowledge_integration}
 Read the docs, study the examples, and create an excellent orchestration setup!"""
